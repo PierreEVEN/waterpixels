@@ -19,16 +19,9 @@ endif()
 
 file(GLOB_RECURSE SOURCES ${CMAKE_SOURCE_DIR}/src/*.cpp ${CMAKE_SOURCE_DIR}/include/*.hpp)
 
-
-file(GLOB_RECURSE HEADERS ${CMAKE_SOURCE_DIR}/third_party/libtim/*)
-
-add_library(libtim ${HEADERS})
-target_include_directories(libtim PUBLIC ${CMAKE_SOURCE_DIR}/third_party/libtim)
-
 # For better display in IDEs
 SOURCE_GROUP(TREE ${CMAKE_SOURCE_DIR}/src PREFIX src FILES ${SOURCES})
 #SOURCE_GROUP(TREE ${CMAKE_SOURCE_DIR}/third_party PREFIX third_party FILES ${LIB})
 
 add_executable(waterpixels ${SOURCES})
-target_include_directories(libtim PRIVATE ${CMAKE_SOURCE_DIR}/src/)
-target_link_libraries(waterpixels PUBLIC libtim)
+target_include_directories(waterpixels PRIVATE ${CMAKE_SOURCE_DIR}/src/)
