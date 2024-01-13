@@ -6,4 +6,4 @@
 #endif // MARKER_EPSILON
 
 
-LibTIM::Image<LibTIM::TLabel> markers(const LibTIM::Image<LibTIM::RGB>& source, float sigma = 50);
+LibTIM::Image<LibTIM::TLabel> markers(const LibTIM::Image<LibTIM::U8>& source, float sigma = 50);

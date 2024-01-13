@@ -112,10 +112,6 @@ LibTIM::Image<LibTIM::U8> applyFilter(LibTIM::Image<LibTIM::U8> image, std::vect
 			int endY = y + int(kernel[0].size() / 2);
 			int endX = x + int(kernel.size() / 2);
 
-			/*std::cout << kernel.size() << kernel[0].size() << std::endl;
-			std::cout << kernel.size() / 2 << kernel[0].size() / 2 << std::endl;
-			std::cout << startX << ", " << startY << ", " << endX << ", " << endY << std::endl;*/
-
 			float res = 0;
 			for (int i = startY; i <= endY; i++)
 			{
@@ -129,7 +125,6 @@ LibTIM::Image<LibTIM::U8> applyFilter(LibTIM::Image<LibTIM::U8> image, std::vect
 					res += kernel[j - startX][i - startY] * p;
 				}
 			}
-			/*res *= */
 			resImg(x, y) = std::clamp(static_cast<int>(res), 0, 255);
 		}
 	}
@@ -154,20 +149,16 @@ LibTIM::Image<LibTIM::U8> spatialRegularization(LibTIM::Image<LibTIM::U8> image,
 	int dy = image.getSizeY();
 
 	LibTIM::Image<LibTIM::U8> regularizedImg{ static_cast<LibTIM::TSize>(dx), static_cast<LibTIM::TSize>(dy) };
-	//auto gridPoints = makePoints(dx, dy, sigma);
 
 	for (int y = 0; y < dy; y++)
 	{
 		for (int x = 0; x < dx; x++)
 		{
-			//auto closestCenter = gridPoints[int(x/sigma) ]
 			glm::vec2 closestCenter{ int(static_cast<float>(x) / sigma) * sigma + sigma / 2.f, int(static_cast<float>(y) / sigma) * sigma + sigma / 2.f };
-			//std::cout << closestCenter.x << ", " << closestCenter.y << std::endl;
 			glm::vec2 currentPixel{ x, y };
-			float d = glm::distance(closestCenter, currentPixel);
+			float d = std::max(std::abs(currentPixel.x - closestCenter.x), std::abs(currentPixel.y - closestCenter.y));
+
 			regularizedImg(x, y) = static_cast<LibTIM::U8>(image(x, y) + k * ((2.f * d) / sigma));
-			
-			//float d = std::abs(sigma + sigma/2.f - x);// normalized distance to closest cell center
 		}
 	}
 

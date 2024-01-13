@@ -29,10 +29,11 @@ int main(int argc, char** argv)
 	sobelImg.save("Images/imgSobel.ppm");
 
 	int sigma = 50;
-	auto regularizedSobelImg = spatialRegularization(sobelImg, sigma, 20);
+	auto regularizedSobelImg = spatialRegularization(sobelImg, sigma, 5);
 	regularizedSobelImg.save("Images/regularizedSobelImg.ppm");
 
-	LibTIM::Image<LibTIM::TLabel> ms = markers(image, sigma);
+	//LibTIM::Image<LibTIM::TLabel> ms = markers(image, sigma);
+	LibTIM::Image<LibTIM::TLabel> ms = markers(sobelImg, sigma);
 
 
 	LibTIM::Image<LibTIM::U8> minimumPoints(image.getSizeX(), image.getSizeY());
@@ -47,7 +48,7 @@ int main(int argc, char** argv)
 
 	LibTIM::FlatSE flatSe;
 	flatSe.make2DN8();
-	LibTIM::watershedMeyer<uint8_t>(grayScaleImage, minLabeled, flatSe);
+	LibTIM::watershedMeyer<uint8_t>(regularizedSobelImg, minLabeled, flatSe);
 
 	LibTIM::Image<LibTIM::U8> finalMap = LibTIM::morphologicalGradient(minLabeled, flatSe);
 
