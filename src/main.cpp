@@ -37,23 +37,24 @@ int main(int argc, char** argv)
 	out.save("Images/imgMarkers.ppm");
 	return 0;
 
-	// stocke les dimensions de l'image dans dx et dy
+	//// stocke les dimensions de l'image dans dx et dy
 	int dx = image.getSizeX();
 	int dy = image.getSizeY();
 
-	LibTIM::Image<LibTIM::RGB> imgInCIELAB{static_cast<LibTIM::TSize>(dx), static_cast<LibTIM::TSize>(dy)};
+	//LibTIM::Image<LibTIM::RGB> imgInCIELAB{static_cast<LibTIM::TSize>(dx), static_cast<LibTIM::TSize>(dy)};
+	LibTIM::Image<LibTIM::U8> imgInCIELAB{ static_cast<LibTIM::TSize>(dx), static_cast<LibTIM::TSize>(dy) };
+
+
 	for (int y = 0; y < dy; y++)
 		for (int x = 0; x < dx; x++)
 		{
 			glm::vec3 pixelInLAB = rgbToCIELAB(image(x, y)); // Here the value are in [0, 1]
-			imgInCIELAB(x, y) = LibTIM::RGB({
-				static_cast<LibTIM::U8>(pixelInLAB.r / 100.f * 255.f),
-				static_cast<LibTIM::U8>(pixelInLAB.r / 100.f * 255.f),
-				static_cast<LibTIM::U8>(pixelInLAB.r / 100.f * 255.f)
-			});
+			imgInCIELAB(x, y) = static_cast<LibTIM::U8>(pixelInLAB.r / 100.f * 255.f);
 		}
 	imgInCIELAB.save("Images/landscape_CIELAB.ppm");
 
+	auto sobelImg = sobelFilter(imgInCIELAB);
+	sobelImg.save("Images/imgSobel.ppm");
 
 	auto markers = LibTIM::Image<LibTIM::TLabel>(image.getSizeX(), image.getSizeY());
 
