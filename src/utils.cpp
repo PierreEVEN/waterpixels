@@ -1,8 +1,20 @@
 #include "utils.hpp"
 
-#include <glm/gtc/matrix_transform.hpp>
-
 #include "Common/Types.h"
+
+std::vector<glm::vec2> makePoints(uint32_t width, uint32_t height, float sigma)
+{
+	std::vector<glm::vec2> points;
+	points.reserve(static_cast<uint32_t>((width / sigma) * (height / sigma)));
+	for (uint32_t x = 0; x < static_cast<uint32_t>(width / sigma) + 1; ++x)
+	{
+		for (uint32_t y = 0; y < static_cast<uint32_t>(height / sigma) + 1; ++y)
+		{
+			points.emplace_back(glm::vec2{ x * sigma + sigma / 2, y * sigma + sigma / 2 });
+		}
+	}
+	return points;
+}
 
 glm::vec3 rgbToCIELAB(LibTIM::RGB pixelRGB)
 {
@@ -75,10 +87,10 @@ LibTIM::Image<LibTIM::U8> sobelFilter(LibTIM::Image<LibTIM::U8> image)
 					resY += kernelY[j - startX][i - startY] * p;
 				}
 			}
-			imgSobelX(x, y) = resX;
-			imgSobelY(x, y) = resY;
+			imgSobelX(x, y) = static_cast<LibTIM::U8>(resX);
+			imgSobelY(x, y) = static_cast<LibTIM::U8>(resY);
 
-			resImg(x, y) = std::sqrt(resX * resX + resY * resY);
+			resImg(x, y) = static_cast<LibTIM::U8>(std::sqrt(resX * resX + resY * resY));
 		}
 	}
 	return resImg;
@@ -128,4 +140,36 @@ LibTIM::Image<LibTIM::U8> gaussianFilter3x3(LibTIM::Image<LibTIM::U8> image)
 {
 	std::vector<std::vector<float>> gaussian = { {1.f / 16.f, 2.f / 16.f, 1.f / 16.f}, {2.f / 16.f, 4 / 16.f, 2 / 16.f}, {1.f / 16.f, 2.f / 16.f, 1.f / 16.f} };
 	return applyFilter(image, gaussian);
+}
+
+/*
+* Spatial regularization according to a grid with cells of length sigma
+@param image: a grayscale image
+@param sigma: the size of a cell in the grid
+@param k: the regularization parameter (if equals 0 then no regularization)
+*/
+LibTIM::Image<LibTIM::U8> spatialRegularization(LibTIM::Image<LibTIM::U8> image, float sigma, float k)
+{
+	int dx = image.getSizeX();
+	int dy = image.getSizeY();
+
+	LibTIM::Image<LibTIM::U8> regularizedImg{ static_cast<LibTIM::TSize>(dx), static_cast<LibTIM::TSize>(dy) };
+	//auto gridPoints = makePoints(dx, dy, sigma);
+
+	for (int y = 0; y < dy; y++)
+	{
+		for (int x = 0; x < dx; x++)
+		{
+			//auto closestCenter = gridPoints[int(x/sigma) ]
+			glm::vec2 closestCenter{ int(static_cast<float>(x) / sigma) * sigma + sigma / 2.f, int(static_cast<float>(y) / sigma) * sigma + sigma / 2.f };
+			//std::cout << closestCenter.x << ", " << closestCenter.y << std::endl;
+			glm::vec2 currentPixel{ x, y };
+			float d = glm::distance(closestCenter, currentPixel);
+			regularizedImg(x, y) = static_cast<LibTIM::U8>(image(x, y) + k * ((2.f * d) / sigma));
+			
+			//float d = std::abs(sigma + sigma/2.f - x);// normalized distance to closest cell center
+		}
+	}
+
+	return regularizedImg;
 }

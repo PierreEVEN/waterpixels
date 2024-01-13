@@ -22,14 +22,16 @@ int main(int argc, char** argv)
 		for (int y = 0; y < image.getSizeY(); y++)
 			grayScaleImage(x, y) = static_cast<LibTIM::U8>(rgbToCIELAB(image(x, y)).r / 100.f * 255.f);
 
-	/*
+	
 	grayScaleImage.save("Images/landscape_CIELAB.ppm");
 
 	auto sobelImg = sobelFilter(grayScaleImage);
 	sobelImg.save("Images/imgSobel.ppm");
-	*/
 
 	int sigma = 50;
+	auto regularizedSobelImg = spatialRegularization(sobelImg, sigma, 20);
+	regularizedSobelImg.save("Images/regularizedSobelImg.ppm");
+
 	LibTIM::Image<LibTIM::TLabel> ms = markers(image, sigma);
 
 
