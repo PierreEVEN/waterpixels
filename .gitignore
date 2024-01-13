@@ -1,3 +1,9 @@
+<<<<<<< HEAD
 .gitignore
 build
 Images/
+=======
+build
+
+Images/imgInCIELAB.ppm
+>>>>>>> 4b773329d3e4c2897637eb692735cd6ff2ecd97f

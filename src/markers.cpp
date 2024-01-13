@@ -2,6 +2,8 @@
 
 #include <glm/glm.hpp>
 
+#include "utils.hpp"
+
 static std::vector<glm::vec2> makePoints(uint32_t width, uint32_t height, float sigma)
 {
 	std::vector<glm::vec2> points;
@@ -17,8 +19,6 @@ static std::vector<glm::vec2> makePoints(uint32_t width, uint32_t height, float 
 	return points;
 }
 
-
-static glm::vec3 CIELAB(LibTIM::RGB) { return {}; }
 
 static void getLocalMinimums(const LibTIM::Image<LibTIM::RGB>& source, LibTIM::Image<LibTIM::TLabel>& minimums,
                              float sigma,
@@ -40,7 +40,7 @@ static void getLocalMinimums(const LibTIM::Image<LibTIM::RGB>& source, LibTIM::I
 	{
 		for (int32_t y = minY; y <= maxY; ++y)
 		{
-			float lValue = CIELAB(source(x, y)).x;
+			float lValue = rgbToCIELAB(source(x, y)).x;
 			if (lValue < min)
 				min = lValue;
 		}
@@ -53,7 +53,7 @@ static void getLocalMinimums(const LibTIM::Image<LibTIM::RGB>& source, LibTIM::I
 	{
 		for (int32_t y = minY; y <= maxY; ++y)
 		{
-			float lValue = CIELAB(source(x, y)).x;
+			float lValue = rgbToCIELAB(source(x, y)).x;
 			if (std::abs(lValue - min) <= MARKER_EPSILON)
 			{
 				minimums(static_cast<LibTIM::TCoord>(x - center.x), static_cast<LibTIM::TCoord>(y - center.y)) = 1;
