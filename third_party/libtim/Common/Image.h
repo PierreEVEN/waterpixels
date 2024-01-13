@@ -173,8 +173,7 @@ namespace LibTIM
 			}
 			catch (std::exception& e)
 			{
-				std::cerr << "Image::Image(...) : could not allocate buffer : " << e.what() << std::endl;
-				exit(-1);
+				throw std::runtime_error(std::string("Image::Image(...) : could not allocate buffer : ") + e.what());
 			}
 		}
 
@@ -195,8 +194,7 @@ namespace LibTIM
 			}
 			catch (std::exception& e)
 			{
-				std::cerr << "Image::Image(...) : could not allocate buffer : " << e.what() << std::endl;
-				exit(-1);
+				throw std::runtime_error(std::string("Image::Image(...) : could not allocate buffer : ") + e.what());
 			}
 		}
 
