@@ -15,7 +15,6 @@ static std::vector<glm::vec2> makePoints(uint32_t width, uint32_t height, float 
 			points.emplace_back(glm::vec2{x * sigma + sigma / 2, y * sigma + sigma / 2});
 		}
 	}
-
 	return points;
 }
 
@@ -114,21 +113,18 @@ static void getLocalMinimums(const LibTIM::Image<LibTIM::RGB>& source, LibTIM::I
 		componentDistances.emplace_back(std::pair{newValue, nbPoints});
 	};
 
-
 	for (int32_t x = minX; x <= maxX; ++x)
 	{
 		for (int32_t y = minY; y <= maxY; ++y)
-		{
-			if (getMarkers(x, y) == 1)
-				getComponentDistanceAndUpdateValue(glm::ivec2{x, y});
+		{			
+			if (getMarkers(x, y) == 1) {
+				getComponentDistanceAndUpdateValue(glm::ivec2{ x, y });
+			}
 		}
 	}
 
 	if (componentDistances.empty())
-	{
-		std::cerr << "Failed to find minimum distance" << std::endl;
-		exit(-1);
-	}
+		throw std::runtime_error("Failed to find minimum distance");
 
 	uint32_t minComponent = componentDistances[0].first;
 	float maxSize = 0;

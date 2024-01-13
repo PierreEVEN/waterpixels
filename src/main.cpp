@@ -18,7 +18,7 @@ int main(int argc, char** argv)
 
 	LibTIM::Image<LibTIM::RGB>::load("Images/landscape.ppm", image);
 
-	int sigma = 20;
+	int sigma = 50;
 
 	LibTIM::Image<LibTIM::TLabel> ms = markers(image, sigma);
 
