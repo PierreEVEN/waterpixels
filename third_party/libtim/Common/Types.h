@@ -43,8 +43,9 @@ struct	Table{
 		{
 		for(int i=0; i<N; i++) el[i]=v.el[i];
 		}
-	Table(int p) {for(int i=0; i<N; i++) el[i]=p;}
-	Table(int *vect) {for(int i=0; i<N; i++) el[i]=vect[i];}
+	Table(T p) {for(int i=0; i<N; i++) el[i]=p;}
+	Table(T* vect) { for (int i = 0; i < N; i++) el[i] = vect[i]; }
+	Table(const std::initializer_list<T>& vect) { for (int i = 0; i < N; i++) el[i] = *(vect.begin() + i); }
 	
 	T el[N]; 
 	T &operator[](int i)
