@@ -6,13 +6,13 @@
 #include <filesystem>
 
 int main(int argc, char** argv) {
-	auto image = LibTIM::Image<uint8_t>();
+	auto image = LibTIM::Image<LibTIM::RGB>();
 
 	std::cout << std::filesystem::current_path() << std::endl;
 
-	LibTIM::Image<uint8_t>::load("Images/Peyto_Lake_Panorama.jpg", image);
+	LibTIM::Image<LibTIM::RGB>::load("Images/Peyto_Lake_Panorama.ppm", image);
 
-	auto markers = LibTIM::Image<LibTIM::TLabel>(image);
+	auto markers = LibTIM::Image<LibTIM::TLabel>(image.getSizeX(), image.getSizeY());
 
 	LibTIM::FlatSE flatSe;
 
