@@ -1,3 +1,7 @@
 .gitignore
 build
 Images/imgInCIELAB.ppm
+Images/*sobel*
+Images/*Sobel*
+Images/landscape.jpg
+*.zip
