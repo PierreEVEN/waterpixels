@@ -37,7 +37,7 @@ typedef signed long    S32;
 
 //Table 
 template <class T, int N>
-struct Table{
+struct	Table{
 	Table(){};
 	Table(const Table &v)
 		{
