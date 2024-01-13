@@ -19,7 +19,7 @@ endif()
 
 file(GLOB_RECURSE SOURCES ${CMAKE_SOURCE_DIR}/src/*.cpp ${CMAKE_SOURCE_DIR}/src/*.hpp)
 file(GLOB_RECURSE LIBTIM ${CMAKE_SOURCE_DIR}/third_party/libtim/*.cpp ${CMAKE_SOURCE_DIR}/third_party/libtim/*.hpp ${CMAKE_SOURCE_DIR}/third_party/libtim/*.h ${CMAKE_SOURCE_DIR}/third_party/libtim/*.hxx)
-file(GLOB_RECURSE GLM ${CMAKE_SOURCE_DIR}/third_party/glm/*.cpp ${CMAKE_SOURCE_DIR}/third_party/glm/*.hpp ${CMAKE_SOURCE_DIR}/third_party/glm/*.h ${CMAKE_SOURCE_DIR}/third_party/glm/*.hxx)
+file(GLOB_RECURSE GLM ${CMAKE_SOURCE_DIR}/third_party/glm/glm/*.cpp ${CMAKE_SOURCE_DIR}/third_party/glm/glm/*.hpp ${CMAKE_SOURCE_DIR}/third_party/glm/glm/*.h ${CMAKE_SOURCE_DIR}/third_party/glm/glm/*.hxx)
 
 # For better display in IDEs
 SOURCE_GROUP(TREE ${CMAKE_SOURCE_DIR}/src PREFIX src FILES ${SOURCES})
