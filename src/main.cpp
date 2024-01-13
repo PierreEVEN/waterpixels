@@ -1,4 +1,3 @@
-
 #include <cstdint>
 
 #include <libtim/Algorithms/Watershed.h>
@@ -7,8 +6,12 @@
 
 #include "utils.hpp"
 
-int main(int argc, char** argv) {
+int main(int argc, char** argv)
+{
 	auto image = LibTIM::Image<LibTIM::RGB>();
+
+	const auto val = rgbToCIELAB(LibTIM::RGB({58, 59, 60}));
+	std::cout << val.x << "," << val.y << "," << val.z << std::endl;
 
 	std::cout << std::filesystem::current_path() << std::endl;
 
@@ -24,8 +27,10 @@ int main(int argc, char** argv) {
 		for (int x = 0; x < dx; x++)
 		{
 			glm::vec3 pixelInLAB = rgbToCIELAB(image(x, y)); // Here the value are in [0, 1]
-			pixelInLAB *= 255.f;
-			imgInCIELAB(x, y) = LibTIM::RGB({static_cast<LibTIM::U8>(pixelInLAB.x), static_cast<LibTIM::U8>(pixelInLAB.y), static_cast<LibTIM::U8>(pixelInLAB.z)});
+			imgInCIELAB(x, y) = LibTIM::RGB({
+				static_cast<LibTIM::U8>(pixelInLAB.z / 100.f * 255.f), static_cast<LibTIM::U8>(pixelInLAB.z / 100.f * 255.f),
+				static_cast<LibTIM::U8>(pixelInLAB.z / 100.f * 255.f)
+			});
 		}
 	imgInCIELAB.save("Images/imgInCIELAB.ppm");
 
