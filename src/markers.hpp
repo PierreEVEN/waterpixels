@@ -2,7 +2,7 @@
 #include "Common/Image.h"
 
 #ifndef MARKER_EPSILON
-#define MARKER_EPSILON 0.0001f
+#define MARKER_EPSILON 0.2f//0.0001f
 #endif // MARKER_EPSILON
 
 LibTIM::Image<LibTIM::TLabel> markers(const LibTIM::Image<LibTIM::RGB>& source, float sigma = 50);

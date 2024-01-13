@@ -6,14 +6,16 @@ glm::vec3 rgbToCIELAB(LibTIM::RGB pixelRGB)
 {
 	const glm::vec3 normalizedRGB(static_cast<float>(pixelRGB[0]), static_cast<float>(pixelRGB[1]), static_cast<float>(pixelRGB[2]));
 
-	constexpr glm::mat3 rgbToXYZ(
+	glm::mat3 rgbToXYZ(
 		0.618f, 0.299f, 0.0f, // First column
 		0.177f, 0.587f, 0.056f,
 		0.205f, 0.114f, 0.944f);
 
+
+
 	glm::vec3 pixelXYZ = rgbToXYZ * normalizedRGB;
 
-	constexpr  glm::vec3 XYZn = rgbToXYZ * glm::vec3(255.f);
+	 glm::vec3 XYZn = rgbToXYZ * glm::vec3(255.f);
 
 	float L;
 
