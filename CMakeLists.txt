@@ -18,12 +18,14 @@ else()
 endif()
 
 file(GLOB_RECURSE MAIN ${CMAKE_SOURCE_DIR}/src/main.cpp)
-file(GLOB_RECURSE WATERPIXELS ${CMAKE_SOURCE_DIR}/src/waterpixels/*.cpp ${CMAKE_SOURCE_DIR}/src/waterpixels/*.hpp)
+file(GLOB_RECURSE WATERPIXELS ${CMAKE_SOURCE_DIR}/src/waterpixels/*.cpp)
+file(GLOB_RECURSE WATERPIXELS_PUBLIC ${CMAKE_SOURCE_DIR}/include/waterpixels/*.hpp)
 file(GLOB_RECURSE LIBTIM ${CMAKE_SOURCE_DIR}/third_party/libtim/*.cpp ${CMAKE_SOURCE_DIR}/third_party/libtim/*.hpp ${CMAKE_SOURCE_DIR}/third_party/libtim/*.h ${CMAKE_SOURCE_DIR}/third_party/libtim/*.hxx)
 file(GLOB_RECURSE GLM ${CMAKE_SOURCE_DIR}/third_party/glm/glm/*.cpp ${CMAKE_SOURCE_DIR}/third_party/glm/glm/*.hpp ${CMAKE_SOURCE_DIR}/third_party/glm/glm/*.h ${CMAKE_SOURCE_DIR}/third_party/glm/glm/*.hxx)
 
 # For better display in IDEs
-SOURCE_GROUP(TREE ${CMAKE_SOURCE_DIR}/src PREFIX src FILES ${MAIN} ${WATERPIXELS})
+SOURCE_GROUP(TREE ${CMAKE_SOURCE_DIR}/src PREFIX src FILES ${WATERPIXELS})
+SOURCE_GROUP(TREE ${CMAKE_SOURCE_DIR}/include PREFIX include FILES ${WATERPIXELS_PUBLIC})
 SOURCE_GROUP(TREE ${CMAKE_SOURCE_DIR}/third_party/libtim PREFIX libtim FILES ${LIBTIM})
 SOURCE_GROUP(TREE ${CMAKE_SOURCE_DIR}/third_party/glm PREFIX glm FILES ${GLM})
 
@@ -34,7 +36,7 @@ add_library(libtim ${LIBTIM})
 target_include_directories(libtim PUBLIC ${CMAKE_SOURCE_DIR}/third_party/libtim/)
 target_include_directories(libtim PUBLIC ${CMAKE_SOURCE_DIR}/third_party/)
 
-add_library(waterpixels ${WATERPIXELS})
+add_library(waterpixels ${WATERPIXELS} ${WATERPIXELS_PUBLIC})
 target_include_directories(waterpixels PUBLIC ${CMAKE_SOURCE_DIR}/include/)
 target_link_libraries(waterpixels PUBLIC libtim)
 target_link_libraries(waterpixels PUBLIC glm)
