@@ -1,13 +1,5 @@
 .gitignore
 build
-<<<<<<< HEAD
-
-Images/imgInCIELAB.ppm
-Images/imgMarkers.ppm
-=======
-Images/imgInCIELAB.ppm
-Images/*sobel*
-Images/*Sobel*
-Images/landscape.jpg
-*.zip
->>>>>>> 48a29baaa8111d04716a3c536030fa8d11a38be7
+Images/
+!Images/landscape.jpg
+!Images/Peyto_Lake_Panorama.pgm
