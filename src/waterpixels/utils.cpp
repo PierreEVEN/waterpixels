@@ -149,7 +149,7 @@ namespace WP
 		LibTIM::Image<LibTIM::TLabel> binaryImage(image.getSizeX(), image.getSizeY());
 		for (int x = 0; x < binaryImage.getSizeX(); x++)
 			for (int y = 0; y < binaryImage.getSizeY(); y++)
-				binaryImage(x, y) = binaryImage(x, y) ? 255 : 0;
+				binaryImage(x, y) = image(x, y) ? 255 : 0;
 		return binaryImage;
 	}
 

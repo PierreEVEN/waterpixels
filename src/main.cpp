@@ -26,9 +26,8 @@ int main(int argc, char** argv)
 	auto image = LibTIM::Image<LibTIM::RGB>();
 	LibTIM::Image<LibTIM::RGB>::load(argv[1], image);
 
-
 	// Waterpixels algorithm
-	const auto markers = WP::waterpixel(WP::rgbImageIntensity(image), sigma, k);
+	const auto markers = WP::waterpixel(WP::rgbImageIntensity(image), 50, 5);
 
 	// Save image
 	WP::labelToBinaryImage(markers).save(argv[4]);
