@@ -1,23 +1,29 @@
-#include "waterpixels.hpp"
+#include <iostream>
 
-int main(int, char**)
+#include "waterpixels/utils.hpp"
+#include "waterpixels/waterpixels.hpp"
+
+int main(int argc, char** argv)
 {
-	constexpr float sigma = 50;
-	constexpr float k = 5.f;
+	// Read parameters
+	if (argc < 5)
+	{
+		std::cerr <<
+			"Wrong usage : waterpixels <input> <output> <sigma> <k>\n\timage : pgm P6 input image path\n\toutput : ppm output image path\n\tsigma : default = 50\n\tk : default = 5"
+			<< std::endl;
+		return -1;
+	}
+	const auto sigma = static_cast<float>(atof(argv[2]));
+	const auto k = static_cast<float>(atof(argv[3]));
+
+	// Load image
 	auto image = LibTIM::Image<LibTIM::RGB>();
-	LibTIM::Image<LibTIM::RGB>::load("Images/landscape.ppm", image);
+	LibTIM::Image<LibTIM::RGB>::load(argv[1], image);
+
 
 	// Waterpixels algorithm
 	const auto markers = WP::waterpixel(WP::rgbImageIntensity(image), sigma, k);
-	
-	LibTIM::Image<LibTIM::RGB> stackedResults(image.getSizeX(), image.getSizeY());
-	for (int x = 0; x < image.getSizeX(); x++)
-		for (int y = 0; y < image.getSizeY(); y++)
-		{
-			stackedResults(x, y)[0] = markers(x, y) ? 255 : 0;
-			if (x % static_cast<int>(sigma) == 0 || y % static_cast<int>(sigma) == 0)
-				stackedResults(x, y)[2] = 255;
-		}
 
-	stackedResults.save("Images/watershed.pgm");
+	// Save image
+	WP::labelToBinaryImage(markers).save(argv[4]);
 }

@@ -17,12 +17,13 @@ else()
         SET(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra")
 endif()
 
-file(GLOB_RECURSE SOURCES ${CMAKE_SOURCE_DIR}/src/*.cpp ${CMAKE_SOURCE_DIR}/src/*.hpp)
+file(GLOB_RECURSE MAIN ${CMAKE_SOURCE_DIR}/src/main.cpp)
+file(GLOB_RECURSE WATERPIXELS ${CMAKE_SOURCE_DIR}/src/waterpixels/*.cpp ${CMAKE_SOURCE_DIR}/src/waterpixels/*.hpp)
 file(GLOB_RECURSE LIBTIM ${CMAKE_SOURCE_DIR}/third_party/libtim/*.cpp ${CMAKE_SOURCE_DIR}/third_party/libtim/*.hpp ${CMAKE_SOURCE_DIR}/third_party/libtim/*.h ${CMAKE_SOURCE_DIR}/third_party/libtim/*.hxx)
 file(GLOB_RECURSE GLM ${CMAKE_SOURCE_DIR}/third_party/glm/glm/*.cpp ${CMAKE_SOURCE_DIR}/third_party/glm/glm/*.hpp ${CMAKE_SOURCE_DIR}/third_party/glm/glm/*.h ${CMAKE_SOURCE_DIR}/third_party/glm/glm/*.hxx)
 
 # For better display in IDEs
-SOURCE_GROUP(TREE ${CMAKE_SOURCE_DIR}/src PREFIX src FILES ${SOURCES})
+SOURCE_GROUP(TREE ${CMAKE_SOURCE_DIR}/src PREFIX src FILES ${MAIN} ${WATERPIXELS})
 SOURCE_GROUP(TREE ${CMAKE_SOURCE_DIR}/third_party/libtim PREFIX libtim FILES ${LIBTIM})
 SOURCE_GROUP(TREE ${CMAKE_SOURCE_DIR}/third_party/glm PREFIX glm FILES ${GLM})
 
@@ -33,10 +34,13 @@ add_library(libtim ${LIBTIM})
 target_include_directories(libtim PUBLIC ${CMAKE_SOURCE_DIR}/third_party/libtim/)
 target_include_directories(libtim PUBLIC ${CMAKE_SOURCE_DIR}/third_party/)
 
-add_executable(waterpixels ${SOURCES})
-target_include_directories(waterpixels PRIVATE ${CMAKE_SOURCE_DIR}/src/)
-target_link_libraries(waterpixels PRIVATE libtim)
-target_link_libraries(waterpixels PRIVATE glm)
+add_library(waterpixels ${WATERPIXELS})
+target_include_directories(waterpixels PUBLIC ${CMAKE_SOURCE_DIR}/include/)
+target_link_libraries(waterpixels PUBLIC libtim)
+target_link_libraries(waterpixels PUBLIC glm)
+
+add_executable(main ${MAIN})
+target_link_libraries(main PRIVATE waterpixels)
 
 set_target_properties(
     waterpixels PROPERTIES
