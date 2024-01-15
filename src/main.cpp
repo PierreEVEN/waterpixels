@@ -1,4 +1,5 @@
 #include <iostream>
+#include <filesystem>
 
 #include "waterpixels/utils.hpp"
 #include "waterpixels/waterpixels.hpp"
@@ -17,6 +18,11 @@ int main(int argc, char** argv)
 	const auto k = static_cast<float>(atof(argv[3]));
 
 	// Load image
+	if (!std::filesystem::exists(argv[1]))
+	{
+		std::cerr << "Failed to find input file '" << argv[1] << "'." << std::endl;
+		return -1;
+	}
 	auto image = LibTIM::Image<LibTIM::RGB>();
 	LibTIM::Image<LibTIM::RGB>::load(argv[1], image);
 

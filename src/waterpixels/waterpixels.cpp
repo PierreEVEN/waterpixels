@@ -221,13 +221,14 @@ namespace WP
 		auto regularizedSobelImg = spatialRegularization(sobelImg, sigma, k);
 
 		// Generate watershed origins
-		auto watershedSources = labelToBinaryImage(makeWatershedMarkers(sobelImg, sigma));
+		auto watershedSources = makeWatershedMarkers(sobelImg, sigma);
 
 		LibTIM::FlatSE connectivity;
 		connectivity.make2DN4();
-
+		
 		LibTIM::Image<LibTIM::TLabel> minLabeled = labelConnectedComponents(watershedSources, connectivity);
 		LibTIM::watershedMeyer<uint8_t>(regularizedSobelImg, minLabeled, connectivity);
+
 		return imageToBinaryLabel(morphologicalGradient(minLabeled, connectivity));
 	}
 }

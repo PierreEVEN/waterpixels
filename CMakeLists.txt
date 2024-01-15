@@ -9,9 +9,6 @@ SET(CMAKE_CXX_STANDARD_REQUIRED ON)
 if(MSVC)
         SET(CMAKE_CXX_FLAGS_DEBUG "/MP /EHsc /Od /ZI")
         SET(CMAKE_CXX_FLAGS_RELEASE "/MP /EHsc /O2")
-
-        # Set debug dir
-        set(CMAKE_VS_DEBUGGER_WORKING_DIRECTORY "${PROJECT_ROOT}")
 else()
         SET(CMAKE_CXX_FLAGS_DEBUG "-O0 -Wall -Wextra")
         SET(CMAKE_CXX_FLAGS_RELEASE "-O3 -Wall -Wextra")
@@ -44,7 +41,5 @@ target_link_libraries(waterpixels PUBLIC glm)
 add_executable(main ${MAIN})
 target_link_libraries(main PRIVATE waterpixels)
 
-set_target_properties(
-    waterpixels PROPERTIES
-    VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
+set_target_properties(main PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 	

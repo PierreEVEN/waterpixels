@@ -1,5 +1,5 @@
 .gitignore
 build
-Images/
-!Images/landscape.jpg
-!Images/Peyto_Lake_Panorama.pgm
+images/
+!images/landscape.jpg
+!images/Peyto_Lake_Panorama.pgm
