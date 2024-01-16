@@ -3,13 +3,13 @@
 #include <libtim/Common/Types.h>
 
 #ifndef WP_MARKER_EPSILON
-#define WP_MARKER_EPSILON 2
+#define WP_MARKER_EPSILON 0.0001
 #endif // WP_MARKER_EPSILON
 
 namespace WP
 {
 	LibTIM::Image<LibTIM::U8> rgbImageIntensity(const LibTIM::Image<LibTIM::RGB>& image);
-	LibTIM::Image<LibTIM::TLabel> makeWatershedMarkers(const LibTIM::Image<LibTIM::U8>& source, float sigma = 50);
+	LibTIM::Image<LibTIM::TLabel> makeWatershedMarkers(const LibTIM::Image<LibTIM::U8>& source, float sigma);
 	
 	/*
 	* Spatial regularization according to a grid with cells of length sigma

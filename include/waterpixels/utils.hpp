@@ -8,7 +8,7 @@ namespace WP
 {
 	glm::vec3 rgbToCIELAB(LibTIM::RGB pixelRGB);
 
-	std::vector<glm::vec2> makePoints(uint32_t width, uint32_t height, float sigma);
+	std::vector<glm::ivec2> makePoints(uint32_t width, uint32_t height, float sigma);
 
 	LibTIM::Image<LibTIM::U8> sobelFilter(LibTIM::Image<LibTIM::U8> image);
 

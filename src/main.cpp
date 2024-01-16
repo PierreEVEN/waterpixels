@@ -14,8 +14,8 @@ int main(int argc, char** argv)
 			<< std::endl;
 		return -1;
 	}
-	const auto sigma = static_cast<float>(atof(argv[2]));
-	const auto k = static_cast<float>(atof(argv[3]));
+	const auto sigma = static_cast<float>(atof(argv[3]));
+	const auto k = static_cast<float>(atof(argv[4]));
 
 	// Load image
 	if (!std::filesystem::exists(argv[1]))
@@ -30,5 +30,5 @@ int main(int argc, char** argv)
 	const auto markers = WP::waterpixel(WP::rgbImageIntensity(image), 50, 5);
 
 	// Save image
-	WP::labelToBinaryImage(markers).save(argv[4]);
+	WP::labelToBinaryImage(markers).save(argv[2]);
 }

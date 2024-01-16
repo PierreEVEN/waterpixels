@@ -10,6 +10,38 @@
 
 namespace WP
 {
+	template <typename Lambda_T>
+	void iterateConnectedComponent(LibTIM::Image<LibTIM::TLabel> background, int ccOffset, const glm::ivec2& start,
+	                               Lambda_T l)
+	{
+		const auto centerClamped = glm::ivec2{
+			std::clamp(start.x, 0, background.getSizeX() - 1), std::clamp(start.y, 0, background.getSizeY() - 1)
+		};
+		const unsigned long componentValue = background(centerClamped.x, centerClamped.y);
+		std::vector testedPoints = {centerClamped};
+		while (!testedPoints.empty())
+		{
+			const auto point = testedPoints.back();
+			testedPoints.pop_back();
+
+			l(point);
+
+			const auto testPosition = [&](const glm::ivec2& pos)
+			{
+				if (!background.isPosValid(pos.x, pos.y) || background(pos.x, pos.y) != componentValue)
+					return;
+				testedPoints.emplace_back(pos);
+				background(pos.x, pos.y) += ccOffset;
+			};
+
+			testPosition(point + glm::ivec2{1, 0});
+			testPosition(point + glm::ivec2{-1, 0});
+			testPosition(point + glm::ivec2{0, 1});
+			testPosition(point + glm::ivec2{0, -1});
+		}
+	}
+
+
 	LibTIM::Image<LibTIM::U8> rgbImageIntensity(const LibTIM::Image<LibTIM::RGB>& image)
 	{
 		LibTIM::Image<LibTIM::U8> lImage(image.getSizeX(), image.getSizeY());
@@ -19,138 +51,6 @@ namespace WP
 		return lImage;
 	}
 
-	static void getLocalMinimums(const LibTIM::Image<LibTIM::U8>& source, LibTIM::Image<LibTIM::TLabel>& markers,
-	                             float sigma,
-	                             const glm::vec2& center)
-	{
-		const int32_t exploredWidth = static_cast<int32_t>(sigma);
-		const int32_t exploredHeight = static_cast<int32_t>(sigma);
-
-		uint32_t imageWidth = exploredWidth + 1;
-		uint32_t imageHeight = exploredWidth + 1;
-		if (markers.getSizeX() != imageWidth || markers.getSizeY() != imageHeight)
-			markers.setSize(imageWidth, imageHeight, 1);
-		markers.fill(0);
-
-		const int32_t minX = std::max(0, static_cast<int32_t>(center.x - std::floor(exploredWidth / 2 - 1)));
-		const int32_t maxX = std::min(source.getSizeX() - 1,
-		                              static_cast<int32_t>(center.x + std::floor(exploredWidth / 2)));
-		const int32_t minY = std::max(0, static_cast<int32_t>(center.y - std::floor(exploredHeight / 2 - 1)));
-		const int32_t maxY = std::min(source.getSizeY() - 1,
-		                              static_cast<int32_t>(center.y + std::floor(exploredHeight / 2)));
-
-		const auto getMarkers = [&](uint32_t globalX, uint32_t globalY)
-		{
-			return markers(globalX - center.x + exploredWidth / 2 - 1, globalY - center.y + exploredHeight / 2 - 1);
-		};
-
-		const auto setMarkers = [&](int32_t globalX, int32_t globalY, unsigned long value)
-		{
-			markers(globalX - center.x + exploredWidth / 2 - 1, globalY - center.y + exploredHeight / 2 - 1) = value;
-		};
-
-		// Get Min
-		float minChunkValue = FLT_MAX;
-		for (int32_t x = minX; x <= maxX; ++x)
-		{
-			for (int32_t y = minY; y <= maxY; ++y)
-			{
-				float pVal = source(x, y);
-				if (pVal < minChunkValue)
-					minChunkValue = pVal;
-			}
-		}
-
-		// Get Min Points
-		for (int32_t x = minX; x <= maxX; ++x)
-		{
-			for (int32_t y = minY; y <= maxY; ++y)
-			{
-				const float pVal = source(x, y);
-				if (std::abs(pVal - minChunkValue) <= WP_MARKER_EPSILON)
-				{
-					setMarkers(x, y, 1);
-				}
-				else
-					setMarkers(x, y, 0);
-			}
-		}
-
-		// Find the closest connected primitive
-		std::vector<std::pair<uint32_t, uint32_t>> componentDistances;
-		const auto getComponentDistanceAndUpdateValue = [&](const glm::vec2& origin)
-		{
-			std::vector<glm::ivec2> pointsToUpdate = {origin};
-
-			uint32_t newValue = componentDistances.size() + 2;
-
-			uint32_t nbPoints = 0;
-
-			float minDistance = FLT_MAX;
-
-			while (!pointsToUpdate.empty())
-			{
-				const auto coord = glm::ivec2(pointsToUpdate.back());
-				nbPoints++;
-				setMarkers(coord.x, coord.y, newValue);
-
-				const float distance = std::sqrt(std::pow(coord.x - center.x, 2) + std::pow(coord.y - center.y, 2));
-				if (distance < minDistance)
-					minDistance = distance;
-
-				pointsToUpdate.pop_back();
-
-				for (int32_t x = -1; x <= 1; ++x)
-					for (int32_t y = -1; y <= 1; ++y)
-						if (!(x == 0 && y == 0))
-						{
-							const auto newCoord = glm::ivec2(std::clamp(coord.x + x, minX, maxX),
-							                                 std::clamp(coord.y + y, minY, maxY));
-							if (getMarkers(newCoord.x, newCoord.y) == 1)
-								pointsToUpdate.emplace_back(newCoord);
-						}
-			}
-			componentDistances.emplace_back(std::pair{newValue, nbPoints});
-		};
-
-		for (int32_t x = minX; x <= maxX; ++x)
-		{
-			for (int32_t y = minY; y <= maxY; ++y)
-			{
-				if (getMarkers(x, y) == 1)
-				{
-					getComponentDistanceAndUpdateValue(glm::ivec2{x, y});
-				}
-			}
-		}
-
-		if (componentDistances.empty())
-			throw std::runtime_error("Failed to find minimum distance");
-
-		uint32_t minComponent = componentDistances[0].first;
-		float maxSize = 0;
-		for (const auto p : componentDistances)
-			if (p.second > maxSize)
-			{
-				maxSize = p.second;
-				minComponent = p.first;
-			}
-
-		// Erase undesired components
-		for (int32_t x = minX; x <= maxX; ++x)
-		{
-			for (int32_t y = minY; y <= maxY; ++y)
-			{
-				if (getMarkers(x, y) == minComponent)
-				{
-					setMarkers(x, y, 1);
-				}
-				else
-					setMarkers(x, y, 0);
-			}
-		}
-	}
-	
 	LibTIM::Image<LibTIM::U8> spatialRegularization(LibTIM::Image<LibTIM::U8> image, float sigma, float k)
 	{
 		int dx = image.getSizeX();
@@ -179,35 +79,89 @@ namespace WP
 
 	LibTIM::Image<LibTIM::TLabel> makeWatershedMarkers(const LibTIM::Image<LibTIM::U8>& source, float sigma)
 	{
-		auto markers = LibTIM::Image<LibTIM::TLabel>(source.getSizeX(), source.getSizeY());
+		LibTIM::Image<LibTIM::TLabel> markers(source.getSizeX(), source.getSizeY());
+		LibTIM::Image<LibTIM::TLabel> voronoiMap(source.getSizeX(), source.getSizeY());
+		LibTIM::Image<LibTIM::TLabel> ccMarkerMap(source.getSizeX(), source.getSizeY());
 		markers.fill(0);
 
+		// 0) Create the centers
 		const auto centers = makePoints(source.getSizeX(), source.getSizeY(), sigma);
 
-		LibTIM::Image<LibTIM::TLabel> minimums(1, 1);
+		// 1) Generate the voronoi diagram
+		// @TODO : accelerate using a hash map
+		const auto getClosestCenter = [&](const glm::ivec2& pos) -> unsigned long
+		{
+			float closestDistance = FLT_MAX;
+			size_t closestIndex = 0;
+			for (size_t i = 0; i < centers.size(); ++i)
+			{
+				const auto delta = centers[i] - pos;
+				const float distance = static_cast<float>(std::sqrt(delta.x * delta.x + delta.y * delta.y));
+				if (distance < closestDistance)
+				{
+					closestDistance = distance;
+					closestIndex = i;
+				}
+			}
+			return static_cast<unsigned int>(closestIndex);
+		};
+
+		for (LibTIM::TSize x = 0; x < source.getSizeX(); ++x)
+			for (LibTIM::TSize y = 0; y < source.getSizeY(); ++y)
+				voronoiMap(x, y) = getClosestCenter({x, y}) + 1;
 
 		for (const auto& center : centers)
 		{
-			getLocalMinimums(source, minimums, sigma, center);
-
-			// Copy each local minimum to global markers
-			for (int x = 0; x < minimums.getSizeX(); ++x)
+			// 2) Search the local minimum in each voronoi cell
+			float minValue = FLT_MAX;
+			iterateConnectedComponent(voronoiMap, centers.size(), center, [&](const glm::ivec2& point)
 			{
-				if (x + center.x - minimums.getSizeX() / 2 + 1 >= source.getSizeX())
-					break;
-				for (int y = 0; y < minimums.getSizeY(); ++y)
-				{
-					if (!minimums(x, y))
-						continue;
-					if (y + center.y - minimums.getSizeY() / 2 + 1 >= source.getSizeY())
-						break;
+				if (const float val = source(point.x, point.y); val < minValue)
+					minValue = val;
+			});
 
-					markers(x + center.x - minimums.getSizeX() / 2 + 1, y + center.y - minimums.getSizeY() / 2 + 1) =
-						minimums(x, y);
+			iterateConnectedComponent(voronoiMap, -centers.size(), center, [&](const glm::ivec2& point)
+			{
+				if (const float val = source(point.x, point.y); std::abs(val - minValue) < WP_MARKER_EPSILON)
+					markers(point.x, point.y) = 1;
+			});
+
+			// 3) Keep only largest cell
+			size_t newCCIndex = 2;
+			std::vector<std::pair<size_t, size_t>> componentSizes;
+			iterateConnectedComponent(voronoiMap, centers.size(), center, [&](const glm::ivec2& point)
+			{
+					if (markers(point.x, point.y) == 1) {
+						size_t CCSize = 0;
+						iterateConnectedComponent(markers, newCCIndex, point, [&](const glm::ivec2 newPoint)
+							{
+								CCSize++;
+							});
+						componentSizes.emplace_back(std::pair{ newCCIndex + 1, CCSize });
+						newCCIndex++;
+					}
+			});
+
+			auto maxCCSize = 0;
+			auto maxCC = componentSizes[0].first;
+			for (const auto& p: componentSizes)
+			{
+				if (p.second > maxCCSize) {
+					maxCC = p.first;
+					maxCCSize = p.second;
 				}
 			}
+			iterateConnectedComponent(voronoiMap, centers.size(), center, [&](const glm::ivec2& point)
+				{
+					if (markers(point.x, point.y) == maxCC)
+						markers(point.x, point.y) = 1;
+					else
+						markers(point.x, point.y) = 0;
+				});
 		}
 
+
+		labelToBinaryImage(markers).save("images/test.ppm");
 		return markers;
 	}
 
@@ -225,7 +179,7 @@ namespace WP
 
 		LibTIM::FlatSE connectivity;
 		connectivity.make2DN4();
-		
+
 		LibTIM::Image<LibTIM::TLabel> minLabeled = labelConnectedComponents(watershedSources, connectivity);
 		LibTIM::watershedMeyer<uint8_t>(regularizedSobelImg, minLabeled, connectivity);
 

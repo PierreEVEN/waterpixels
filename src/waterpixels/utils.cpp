@@ -7,15 +7,15 @@
 
 namespace WP
 {
-	std::vector<glm::vec2> makePoints(uint32_t width, uint32_t height, float sigma)
+	std::vector<glm::ivec2> makePoints(uint32_t width, uint32_t height, float sigma)
 	{
-		std::vector<glm::vec2> points;
+		std::vector<glm::ivec2> points;
 		points.reserve(static_cast<uint32_t>((width / sigma) * (height / sigma)));
 		for (uint32_t x = 0; x < static_cast<uint32_t>(width / sigma) + 1; ++x)
 		{
 			for (uint32_t y = 0; y < static_cast<uint32_t>(height / sigma) + 1; ++y)
 			{
-				points.emplace_back(glm::vec2{x * sigma + sigma / 2, y * sigma + sigma / 2});
+				points.emplace_back(glm::ivec2{x * sigma + sigma / 2, y * sigma + sigma / 2});
 			}
 		}
 		return points;
