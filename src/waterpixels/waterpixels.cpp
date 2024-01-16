@@ -125,7 +125,6 @@ namespace WP
 				if (const float val = source(point.x, point.y); std::abs(val - minValue) < WP_MARKER_EPSILON)
 					markers(point.x, point.y) = 1;
 			});
-
 			// 3) Keep only largest cell
 			size_t newCCIndex = 2;
 			std::vector<std::pair<size_t, size_t>> componentSizes;
@@ -133,14 +132,23 @@ namespace WP
 			{
 					if (markers(point.x, point.y) == 1) {
 						size_t CCSize = 0;
-						iterateConnectedComponent(markers, newCCIndex, point, [&](const glm::ivec2 newPoint)
+						iterateConnectedComponent(markers, newCCIndex, point, [&](const glm::ivec2)
 							{
 								CCSize++;
 							});
+						std::cout << newCCIndex + 1 << " / " << CCSize << std::endl;
 						componentSizes.emplace_back(std::pair{ newCCIndex + 1, CCSize });
 						newCCIndex++;
 					}
 			});
+			LibTIM::Image<LibTIM::U8> testImg(source.getSizeX(), source.getSizeY());
+			for (size_t x = 0; x < source.getSizeX(); ++x)
+				for (size_t y = 0; y < source.getSizeY(); ++y)
+					testImg(x, y) = markers(x, y) == 1 ? 255 : markers(x, y) == 0 ? 0 : 128;
+			testImg.save("images/v1.ppm");
+
+			labelToBinaryImage(markers).save("images/test.ppm");
+			break;
 
 			auto maxCCSize = 0;
 			auto maxCC = componentSizes[0].first;
@@ -151,17 +159,18 @@ namespace WP
 					maxCCSize = p.second;
 				}
 			}
-			iterateConnectedComponent(voronoiMap, centers.size(), center, [&](const glm::ivec2& point)
+			iterateConnectedComponent(voronoiMap, -centers.size(), center, [&](const glm::ivec2& point)
 				{
 					if (markers(point.x, point.y) == maxCC)
 						markers(point.x, point.y) = 1;
 					else
 						markers(point.x, point.y) = 0;
 				});
+
+			break;
 		}
 
 
-		labelToBinaryImage(markers).save("images/test.ppm");
 		return markers;
 	}
 
