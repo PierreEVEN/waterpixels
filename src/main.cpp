@@ -24,7 +24,7 @@ int main(int argc, char** argv)
 	}
 	const auto sigma = static_cast<float>(atof(argv[3]));
 	const auto k = static_cast<float>(atof(argv[4]));
-	const float cellScale = argc > 5 ? static_cast<float>(atof(argv[5])) : 0.8f;
+	const float cellScale = argc > 5 ? static_cast<float>(atof(argv[5])) : 2 / 3.f;
 	const int blurRadius = argc > 6 ? static_cast<float>(atof(argv[6])) : 5;
 
 	// Load image
@@ -36,10 +36,14 @@ int main(int argc, char** argv)
 	auto image = LibTIM::Image<LibTIM::RGB>();
 	LibTIM::Image<LibTIM::RGB>::load(argv[1], image);
 
-	auto bluredImageIntensity = WP::gaussianFilter(WP::rgbImageIntensity(image), blurRadius, 1);
+	// Pre filter image to remove details
+	LibTIM::FlatSE filter;
+	filter.make2DEuclidianBall(blurRadius);
+	const auto imageIntensity = WP::rgbImageIntensity(image);
+	const auto preFilteredImage = closing(opening(imageIntensity, filter), filter);
 
 	// Waterpixels algorithm
-	const auto markers = WP::waterpixel(bluredImageIntensity, sigma, k, cellScale);
+	const auto markers = WP::waterpixel(preFilteredImage, sigma, k, cellScale);
 
 	// Save image
 	WP::labelToBinaryImage(markers).save(argv[2]);
@@ -48,7 +52,7 @@ int main(int argc, char** argv)
 #if OUTPUT_DEBUG
 
 	// Move to the derivative space
-	auto sobelImg = WP::sobelFilter(bluredImageIntensity);
+	auto sobelImg = WP::sobelFilter(preFilteredImage);
 	sobelImg.save("images/sobel.ppm");
 
 	// This will serve as guide to the watershed algorithm

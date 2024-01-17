@@ -94,11 +94,10 @@ namespace WP
 					int(static_cast<float>(y) / sigma) * sigma + sigma / 2.f
 				};
 				glm::vec2 currentPixel{x, y};
-				const auto delta = currentPixel - closestCenter;
 
 				// Compute L1 distance from point to center
-				float d = std::max(std::abs(currentPixel.x - closestCenter.x),
-				                   std::abs(currentPixel.y - closestCenter.y));
+				float d = std::max(std::abs(x - closestCenter.x),
+				                   std::abs(y - closestCenter.y));
 
 				regularizedImg(x, y) = static_cast<LibTIM::U8>(std::min(
 					static_cast<int>(image(x, y) + k * (2.f * d / sigma)), 255));
