@@ -3,3 +3,4 @@ build
 images/*
 !images/landscape.ppm
 !images/Peyto_Lake_Panorama.ppm
+!images/Peyto_Lake_Panorama_Big.ppm

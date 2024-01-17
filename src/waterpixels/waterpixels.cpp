@@ -39,7 +39,7 @@ namespace WP
 	}
 
 	template <typename Lambda_T>
-	void iterateConnectedComponent(LibTIM::Image<LibTIM::TLabel> background, int ccOffset, const glm::ivec2& start,
+	void iterateConnectedComponent(LibTIM::Image<LibTIM::TLabel>& background, int ccOffset, const glm::ivec2& start,
 	                               Lambda_T callback)
 	{
 		const auto centerClamped = clampPointToImage(background, start);
@@ -72,42 +72,36 @@ namespace WP
 	LibTIM::Image<LibTIM::U8> rgbImageIntensity(const LibTIM::Image<LibTIM::RGB>& image)
 	{
 		LibTIM::Image<LibTIM::U8> lImage(image.getSizeX(), image.getSizeY());
+		#pragma omp parallel for collapse(2)
 		for (int x = 0; x < image.getSizeX(); x++)
 			for (int y = 0; y < image.getSizeY(); y++)
 				lImage(x, y) = static_cast<LibTIM::U8>(rgbToCIELAB(image(x, y)).r / 100.f * 255.f);
 		return lImage;
 	}
 
-	LibTIM::Image<LibTIM::U8> spatialRegularization(LibTIM::Image<LibTIM::U8> image, float sigma, float k)
+	LibTIM::Image<LibTIM::U8> spatialRegularization(const LibTIM::Image<LibTIM::U8>& source,
+	                                                const VoronoiGraph& voronoiCells, float sigma, float k)
 	{
-		int dx = image.getSizeX();
-		int dy = image.getSizeY();
-
-		LibTIM::Image<LibTIM::U8> regularizedImg{static_cast<LibTIM::TSize>(dx), static_cast<LibTIM::TSize>(dy)};
-
-		for (int y = 0; y < dy; y++)
+		LibTIM::Image<LibTIM::U8> result(source.getSizeX(), source.getSizeY());
+		for (const auto& cell : voronoiCells.cells())
 		{
-			for (int x = 0; x < dx; x++)
+			const auto& center = cell.first;
+			for (const auto& point : cell.second)
 			{
-				glm::vec2 closestCenter{
-					int(static_cast<float>(x) / sigma) * sigma + sigma / 2.f,
-					int(static_cast<float>(y) / sigma) * sigma + sigma / 2.f
-				};
-				glm::vec2 currentPixel{x, y};
+				// Compute Linf distance from point to center
+				//const float d = std::max(std::abs(point.x - center.x),std::abs(point.y - center.y));
+				const auto delta = point - center;
+				const float d = std::sqrt(delta.x * delta.x + delta.y * delta.y);
 
-				// Compute L1 distance from point to center
-				float d = std::max(std::abs(x - closestCenter.x),
-				                   std::abs(y - closestCenter.y));
-
-				regularizedImg(x, y) = static_cast<LibTIM::U8>(std::min(
-					static_cast<int>(image(x, y) + k * (2.f * d / sigma)), 255));
+				result(point.x, point.y) = static_cast<LibTIM::U8>(std::min(
+					static_cast<int>(source(point.x, point.y) + k * (2.f * d / sigma)), 255));
 			}
 		}
-
-		return regularizedImg;
+		return result;
 	}
 
-	LibTIM::Image<LibTIM::TLabel> makeWatershedMarkers(const LibTIM::Image<LibTIM::U8>& source, float sigma,
+	LibTIM::Image<LibTIM::TLabel> makeWatershedMarkers(const LibTIM::Image<LibTIM::U8>& source,
+	                                                   const VoronoiGraph& voronoiCells, float sigma,
 	                                                   float cellScale)
 	{
 		LibTIM::Image<LibTIM::TLabel> markers(source.getSizeX(), source.getSizeY());
@@ -115,64 +109,67 @@ namespace WP
 		LibTIM::Image<LibTIM::TLabel> ccMarkerMap(source.getSizeX(), source.getSizeY());
 		markers.fill(0);
 
-		// 0) Create the centers
-		const auto centers = makePoints(source.getSizeX(), source.getSizeY(), sigma);
+		size_t cellIndex = 1;
+		MEASURE_AVERAGE_DURATION(cellMarkerAvg, "Generate watershed markers for one cell");
+		MEASURE_CUMULATIVE_DURATION(cellHomotTot, "Apply homothety for one cell");
+		MEASURE_CUMULATIVE_DURATION(searchAllMin, "Search all pixels with minimum value in cell");
+		MEASURE_CUMULATIVE_DURATION(cellFilterBestTarget,
+		                            "Filter and keep only the best connected component for each cell");
+		MEASURE_CUMULATIVE_DURATION(iterateSubCellComponents,
+			"Local cell component iteration");
 
-		// 1) Generate the voronoi diagram
-		// @TODO : accelerate using a hash map
-		const auto getClosestCenter = [&](const glm::ivec2& pos) -> unsigned long
+		const auto& cells = voronoiCells.cells();
+
+		std::mutex lastMutex;
+		auto last = std::chrono::steady_clock::now();
+
+#pragma omp parallel for
+		for (int64_t ci = 0; ci < cells.size(); ++ci)
 		{
-			float closestDistance = FLT_MAX;
-			size_t closestIndex = 0;
-			for (size_t i = 0; i < centers.size(); ++i)
+			if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - last).count() >= 1000)
 			{
-				const auto delta = centers[i] - pos;
-				const float distance = static_cast<float>(std::sqrt(delta.x * delta.x + delta.y * delta.y));
-				if (distance < closestDistance)
-				{
-					closestDistance = distance;
-					closestIndex = i;
-				}
+				std::lock_guard m(lastMutex);
+				last = std::chrono::steady_clock::now();
+				std::cout << "Watershed markers generation : " << static_cast<float>(ci) / cells.size() * 100 << "% ..." << std::endl;
 			}
-			return static_cast<unsigned int>(closestIndex);
-		};
 
-		for (LibTIM::TSize x = 0; x < source.getSizeX(); ++x)
-			for (LibTIM::TSize y = 0; y < source.getSizeY(); ++y)
-				voronoiMap(x, y) = getClosestCenter({x, y}) + 1;
 
-		for (const auto& center : centers)
-		{
-			std::vector<glm::ivec2> cellPoints;
-			iterateConnectedComponent(voronoiMap, centers.size(), center, [&](const glm::ivec2& point)
-			{
-				cellPoints.emplace_back(point);
-			});
+			const auto& cell = cells[ci];
+			MEASURE_ADD_CUMULATOR(cellMarkerAvg);
+			const auto& center = cell.first;
+
+			auto cellPoints = cell.second;
 
 			// 3) Apply homothety on the cell points;
 			std::unordered_set<glm::ivec2> movedPoints;
-			for (const auto& point : cellPoints)
 			{
-				const auto pointToCenter = glm::vec2(center - point);
-				const auto distance = length(pointToCenter);
-				const auto newPos = center + glm::ivec2(normalize(-pointToCenter) * distance * cellScale);
-				if (source.isPosValid(newPos.x, newPos.y))
-					movedPoints.insert(newPos);
-			}
+				MEASURE_ADD_CUMULATOR(cellHomotTot);
+				for (const auto& point : cellPoints)
+				{
+					const auto pointToCenter = glm::vec2(center - point);
+					const auto distance = length(pointToCenter);
+					const auto newPos = center + glm::ivec2(normalize(-pointToCenter) * distance * cellScale);
+					if (source.isPosValid(newPos.x, newPos.y))
+						movedPoints.insert(newPos);
+				}
 
-			cellPoints.clear();
-			for (const auto& point : movedPoints)
-				cellPoints.emplace_back(point);
+				cellPoints.clear();
+				for (const auto& point : movedPoints)
+					cellPoints.emplace_back(point);
+			}
 
 			// 2) Search the local minimum in each voronoi cell
 			float minValue = FLT_MAX;
-			for (const auto& point : cellPoints)
-				if (const float val = source(point.x, point.y); val < minValue)
-					minValue = val;
+			{
+				MEASURE_ADD_CUMULATOR(searchAllMin);
+				for (const auto& point : cellPoints)
+					if (const float val = source(point.x, point.y); val < minValue)
+						minValue = val;
 
-			for (const auto& point : cellPoints)
-				if (const float val = source(point.x, point.y); std::abs(val - minValue) < WP_MARKER_EPSILON)
-					markers(point.x, point.y) = 1;
+				for (const auto& point : cellPoints)
+					if (const float val = source(point.x, point.y); std::abs(val - minValue) < WP_MARKER_EPSILON)
+						markers(point.x, point.y) = 1;
+			}
 
 			// 3) Keep only largest cell
 #if PREFER_CELL_CENTER
@@ -182,74 +179,106 @@ namespace WP
 #endif
 			size_t selectedIndex = 0;
 			std::vector<std::vector<glm::ivec2>> componentSizes;
-			for (const auto& point : cellPoints)
 			{
-				if (markers(point.x, point.y) == 1)
+				MEASURE_ADD_CUMULATOR(cellFilterBestTarget);
+				for (const auto& point : cellPoints)
 				{
+					if (markers(point.x, point.y) == 1)
+					{
 #if PREFER_CELL_CENTER
-					/* VERSION WITH CLOSEST Connected Component */
-					float minDistance = FLT_MAX;
-					std::vector<glm::ivec2> componentElements;
-					iterateConnectedComponent(markers, 1, point, [&](const glm::ivec2& pt)
-					{
-						componentElements.emplace_back(pt);
-						const auto delta = pt - center;
-						const auto distance = std::sqrt(delta.x * delta.x + delta.y * delta.y);
-						if (distance < minDistance)
-							minDistance = distance;
-					});
-					if (minDistance < selectedValue)
-					{
-						selectedValue = minDistance;
-						selectedIndex = componentSizes.size();
-					}
+						/* VERSION WITH CLOSEST Connected Component */
+						float minDistance = FLT_MAX;
+						std::vector<glm::ivec2> componentElements;
+						{
+							MEASURE_ADD_CUMULATOR(iterateSubCellComponents);
+							iterateConnectedComponent(markers, 1, point, [&](const glm::ivec2& pt)
+								{
+									componentElements.emplace_back(pt);
+									const auto delta = pt - center;
+									const auto distance = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+									if (distance < minDistance)
+										minDistance = distance;
+								});
+						}
+						if (minDistance < selectedValue)
+						{
+							selectedValue = minDistance;
+							selectedIndex = componentSizes.size();
+						}
 #else
-					/* VERSION WITH LARGEST Connected Component */
-					std::vector<glm::ivec2> componentElements;
-					iterateConnectedComponent(markers, 1, point, [&](const glm::ivec2& pt)
-					{
-						componentElements.emplace_back(pt);
-					});
-					if (componentElements.size() > selectedValue)
-					{
-						selectedValue = componentElements.size();
-						selectedIndex = componentSizes.size();
-					}
+						/* VERSION WITH LARGEST Connected Component */
+						std::vector<glm::ivec2> componentElements;
+						{
+							MEASURE_ADD_CUMULATOR(iterateSubCellComponents);
+							iterateConnectedComponent(markers, 1, point, [&](const glm::ivec2& pt)
+								{
+									componentElements.emplace_back(pt);
+								});
+						}
+						if (componentElements.size() > selectedValue)
+						{
+							selectedValue = componentElements.size();
+							selectedIndex = componentSizes.size();
+						}
 #endif
-					componentSizes.emplace_back(componentElements);
+						componentSizes.emplace_back(componentElements);
+					}
 				}
 			}
+
 			if (componentSizes.empty())
 				componentSizes = {{clampPointToImage(source, center)}};
-
 			for (const auto& point : cellPoints)
 				markers(point.x, point.y) = 0;
 			for (const auto& ccPoint : componentSizes[selectedIndex])
-				markers(ccPoint.x, ccPoint.y) = 1;
+				markers(ccPoint.x, ccPoint.y) = cellIndex;
+			cellIndex++;
 		}
 
-		labelToBinaryImage(markers).save("images/test.ppm");
 		return markers;
 	}
 
 
-	LibTIM::Image<LibTIM::TLabel> waterpixel(const LibTIM::Image<LibTIM::U8>& grayScaleImage, float sigma, float k, float cellScale)
+	LibTIM::Image<LibTIM::TLabel> waterpixel(const LibTIM::Image<LibTIM::U8>& grayScaleImage,
+	                                         const std::vector<glm::ivec2> cellCenters, float sigma, float k,
+	                                         float cellScale)
 	{
+		// Generate a voronoi graph from source points
+		VoronoiGraph voronoi;
+		{
+			MEASURE_DURATION(voronoiCells, "Generate voronoi cells");
+			voronoi = VoronoiGraph(grayScaleImage.getSizeX(), grayScaleImage.getSizeY(), cellCenters);
+		}
+
 		// Move to the derivative space
-		const auto sobelImg = sobelFilter(grayScaleImage);
+		LibTIM::Image<LibTIM::U8> gradient;
+		{
+			LibTIM::FlatSE filter;
+			filter.make2DN4();
+			MEASURE_DURATION(grad, "Compute image gradient");
+			gradient = morphologicalGradient(grayScaleImage, filter);
+		}
 
 		// This will serve as guide to the watershed algorithm
-		auto regularizedSobelImg = spatialRegularization(sobelImg, sigma, k);
+		LibTIM::Image<LibTIM::U8> gradientWithRegularization;
+		{
+			MEASURE_DURATION(gradReg, "Add spatial regularization");
+			gradientWithRegularization = spatialRegularization(gradient, voronoi, sigma, k);
+		}
 
-		// Generate watershed origins
-		auto watershedSources = makeWatershedMarkers(sobelImg, sigma, cellScale);
+		// Generate watershed origins by finding the lowest connected component for each voronoi cell
+		LibTIM::Image<LibTIM::TLabel> watershedSources;
+		{
+			MEASURE_DURATION(watMark, "Generate watershed markers");
+			watershedSources = makeWatershedMarkers(gradient, voronoi, sigma, cellScale);
+		}
 
+		// Finally run watershed-meyer algorithm on markers
+		MEASURE_DURATION(watMark, "Run watershed-meyer algorithm");
 		LibTIM::FlatSE connectivity;
 		connectivity.make2DN4();
+		LibTIM::watershedMeyer<uint8_t>(gradientWithRegularization, watershedSources, connectivity);
 
-		LibTIM::Image<LibTIM::TLabel> minLabeled = labelConnectedComponents(watershedSources, connectivity);
-		LibTIM::watershedMeyer<uint8_t>(regularizedSobelImg, minLabeled, connectivity);
-
-		return imageToBinaryLabel(morphologicalGradient(minLabeled, connectivity));
+		return watershedSources;
 	}
 }

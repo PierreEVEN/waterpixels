@@ -1,15 +1,15 @@
 #include <iostream>
 #include <filesystem>
 
+#include <libtim/Algorithms/Morphology.h>
+#include <libtim/Common/FlatSE.h>
 #include "waterpixels/utils.hpp"
 #include "waterpixels/waterpixels.hpp"
 
-#define OUTPUT_DEBUG true
+#define OUTPUT_DEBUG false
 
 #if OUTPUT_DEBUG
 #include <Algorithms/ConnectedComponents.h>
-#include <Common/FlatSE.h>
-#include <Algorithms/Watershed.hxx>
 #endif
 
 int main(int argc, char** argv)
@@ -27,64 +27,88 @@ int main(int argc, char** argv)
 	const float cellScale = argc > 5 ? static_cast<float>(atof(argv[5])) : 2 / 3.f;
 	const int blurRadius = argc > 6 ? static_cast<float>(atof(argv[6])) : 5;
 
-	// Load image
+	/****** 1) Load the image ******/
 	if (!std::filesystem::exists(argv[1]))
 	{
 		std::cerr << "Failed to find input file '" << argv[1] << "'." << std::endl;
 		return -1;
 	}
 	auto image = LibTIM::Image<LibTIM::RGB>();
-	LibTIM::Image<LibTIM::RGB>::load(argv[1], image);
+	{
+		MEASURE_DURATION(loading, "Load image");
+		LibTIM::Image<LibTIM::RGB>::load(argv[1], image);
+	}
 
-	// Pre filter image to remove details
+	/****** 2) Pre filter image to remove details ******/
 	LibTIM::FlatSE filter;
 	filter.make2DEuclidianBall(blurRadius);
-	const auto imageIntensity = WP::rgbImageIntensity(image);
-	const auto preFilteredImage = closing(opening(imageIntensity, filter), filter);
+	LibTIM::Image<LibTIM::U8> preFilteredImage;
+	{
+		MEASURE_DURATION(prefiltering, "Image pre-filtering");
+		if (blurRadius >= 1)
+		{
+			preFilteredImage = closing(opening(WP::rgbImageIntensity(image), filter), filter);
+		}
+		else
+			preFilteredImage = WP::rgbImageIntensity(image);
+	}
 
-	// Waterpixels algorithm
-	const auto markers = WP::waterpixel(preFilteredImage, sigma, k, cellScale);
+	/****** 3) Choose cell centers ******/
+	std::vector<glm::ivec2> cellCenters;
+	{
+		MEASURE_DURATION(centers, "Generate cell centers");
+		cellCenters = WP::makeRectGrid2D(preFilteredImage.getSizeX(), preFilteredImage.getSizeY(), sigma);
+	}
+
+	/****** 4) Execute waterpixel algorithm ******/
+	LibTIM::Image<LibTIM::TLabel> markers;
+	{
+		MEASURE_DURATION(watershed, "Waterpixel algorithm");
+		markers = WP::waterpixel(preFilteredImage, cellCenters, sigma, k, cellScale);
+	}
+
+	filter.make2DN4();
+	const auto markerDelimitation = morphologicalGradient(markers, filter);
+
+	WP::labelToImage(markerDelimitation).save("images/test.ppm");
 
 	// Save image
-	WP::labelToBinaryImage(markers).save(argv[2]);
+	WP::labelToBinaryImage(markerDelimitation).save(argv[2]);
 
-	
 #if OUTPUT_DEBUG
 
+	const WP::VoronoiGraph voronoi(preFilteredImage.getSizeX(), preFilteredImage.getSizeY(), cellCenters);
+
 	// Move to the derivative space
-	auto sobelImg = WP::sobelFilter(preFilteredImage);
-	sobelImg.save("images/sobel.ppm");
+	filter.make2DN4();
+	auto gradient = morphologicalGradient(preFilteredImage, filter);
+	gradient.save("images/imageGradient.ppm");
 
 	// This will serve as guide to the watershed algorithm
-	auto regularizedSobelImg = WP::spatialRegularization(sobelImg, sigma, k);
-	regularizedSobelImg.save("images/spatialRegularization.ppm");
+	auto regularizedSobelImg = spatialRegularization(gradient, voronoi, sigma, k);
+	regularizedSobelImg.save("images/spatialRegularizationGradient.ppm");
 
 	// Generate watershed origins
-	const auto watershedSources = WP::makeWatershedMarkers(sobelImg, sigma, cellScale);
-	WP::labelToBinaryImage(watershedSources).save("images/sources.ppm");
-	auto sources = LibTIM::Image<LibTIM::RGB>(image.getSizeX(), image.getSizeY());
-	for (size_t x = 0; x < sources.getSizeX(); ++x)
-		for (size_t y = 0; y < sources.getSizeY(); ++y)
-		{
-			sources(x, y) = LibTIM::RGB({0, 0, 0});
-			if (x % static_cast<int>(sigma) == 0 || y % static_cast<int>(sigma) == 0)
-				sources(x, y)[0] = 255;
+	const auto watershedSources = makeWatershedMarkers(gradient, voronoi, sigma, cellScale);
+
+	auto gridDebugImage = voronoi.debugVisualization();
+
+	for (size_t x = 0; x < gridDebugImage.getSizeX(); ++x)
+		for (size_t y = 0; y < gridDebugImage.getSizeY(); ++y)
 			if (watershedSources(x, y))
-				sources(x, y)[1] = 255;
-		}
-	for (const auto& point : WP::makePoints(sobelImg.getSizeX(), sobelImg.getSizeY(), sigma))
-		if (sources.isPosValid(point.x, point.y))
-			sources(point.x, point.y)[2] = 255;
-	sources.save("images/sources.pgm");
+				gridDebugImage(x, y)[2] = 255;
+	gridDebugImage.save("images/watershedSources.pgm");
+
+	// Return the delimitation instead of just connected components
 
 	auto result = LibTIM::Image<LibTIM::RGB>(image.getSizeX(), image.getSizeY());
 	for (size_t x = 0; x < result.getSizeX(); ++x)
 		for (size_t y = 0; y < result.getSizeY(); ++y)
 		{
 			result(x, y) = image(x, y);
-			if (markers(x, y))
+			if (markerDelimitation(x, y))
 				result(x, y) = LibTIM::RGB({255, 255, 255});
 		}
-	result.save("images/final.pgm");
+	result.save("images/combined.pgm");
 #endif
 }
