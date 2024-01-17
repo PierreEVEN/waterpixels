@@ -1,11 +1,16 @@
 #include <iostream>
 #include <filesystem>
 
-#include "Algorithms/ConnectedComponents.hxx"
-#include "Algorithms/Watershed.hxx"
-#include "Common/FlatSE.h"
 #include "waterpixels/utils.hpp"
 #include "waterpixels/waterpixels.hpp"
+
+#define OUTPUT_DEBUG true
+
+#if OUTPUT_DEBUG
+#include <Algorithms/ConnectedComponents.h>
+#include <Common/FlatSE.h>
+#include <Algorithms/Watershed.hxx>
+#endif
 
 int main(int argc, char** argv)
 {
@@ -39,8 +44,8 @@ int main(int argc, char** argv)
 	// Save image
 	WP::labelToBinaryImage(markers).save(argv[2]);
 
-
-	// return 0;
+	
+#if OUTPUT_DEBUG
 
 	// Move to the derivative space
 	auto sobelImg = WP::sobelFilter(bluredImageIntensity);
@@ -77,4 +82,5 @@ int main(int argc, char** argv)
 				result(x, y) = LibTIM::RGB({255, 255, 255});
 		}
 	result.save("images/final.pgm");
+#endif
 }
