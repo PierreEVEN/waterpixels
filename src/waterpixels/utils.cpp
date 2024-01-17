@@ -1,5 +1,6 @@
 #include "waterpixels/utils.hpp"
 
+#include <corecrt_math_defines.h>
 #include <vector>
 
 #include <glm/glm.hpp>
@@ -118,6 +119,7 @@ namespace WP
 				int endX = x + int(kernel.size() / 2);
 
 				float res = 0;
+
 				for (int i = startY; i <= endY; i++)
 				{
 					if (i < 0 || i >= dy)
@@ -136,12 +138,37 @@ namespace WP
 		return resImg;
 	}
 
-	LibTIM::Image<LibTIM::U8> gaussianFilter3x3(LibTIM::Image<LibTIM::U8> image)
+	LibTIM::Image<LibTIM::U8> gaussianFilter(LibTIM::Image<LibTIM::U8> image, int radius, float sigma)
 	{
-		std::vector<std::vector<float>> gaussian = {
-			{1.f / 16.f, 2.f / 16.f, 1.f / 16.f}, {2.f / 16.f, 4 / 16.f, 2 / 16.f}, {1.f / 16.f, 2.f / 16.f, 1.f / 16.f}
-		};
-		return applyFilter(image, gaussian);
+		double s = 2.0 * sigma * sigma;
+		float sum = 0;
+		std::vector<std::vector<float>> filter;
+		for (int64_t x = -radius; x <= radius; ++x)
+		{
+			std::vector<float> values;
+			for (int64_t y = -radius; y <= radius; ++y)
+			{
+				double r = sqrt(x * x + y * y);
+				double kernel = (exp(-(r * r) / s)) / (M_PI * s);
+				values.emplace_back(kernel);
+				sum += kernel;
+			}
+			filter.emplace_back(values);
+		}
+		for (auto& row : filter)
+			for (auto& val : row)
+				val /= sum;
+
+		return applyFilter(image, filter);
+	}
+	
+	LibTIM::Image<LibTIM::U8> labelToImage(const LibTIM::Image<LibTIM::TLabel>& image)
+	{
+		LibTIM::Image<LibTIM::TLabel> binaryImage(image.getSizeX(), image.getSizeY());
+		for (int x = 0; x < binaryImage.getSizeX(); x++)
+			for (int y = 0; y < binaryImage.getSizeY(); y++)
+				binaryImage(x, y) = image(x, y) ;
+		return binaryImage;
 	}
 
 	LibTIM::Image<LibTIM::U8> labelToBinaryImage(const LibTIM::Image<LibTIM::TLabel>& image)

@@ -19,6 +19,8 @@ int main(int argc, char** argv)
 	}
 	const auto sigma = static_cast<float>(atof(argv[3]));
 	const auto k = static_cast<float>(atof(argv[4]));
+	const float cellScale = argc > 5 ? static_cast<float>(atof(argv[5])) : 0.8f;
+	const int blurRadius = argc > 6 ? static_cast<float>(atof(argv[6])) : 5;
 
 	// Load image
 	if (!std::filesystem::exists(argv[1]))
@@ -29,8 +31,10 @@ int main(int argc, char** argv)
 	auto image = LibTIM::Image<LibTIM::RGB>();
 	LibTIM::Image<LibTIM::RGB>::load(argv[1], image);
 
+	auto bluredImageIntensity = WP::gaussianFilter(WP::rgbImageIntensity(image), blurRadius, 1);
+
 	// Waterpixels algorithm
-	const auto markers = WP::waterpixel(WP::rgbImageIntensity(image), sigma, k);
+	const auto markers = WP::waterpixel(bluredImageIntensity, sigma, k, cellScale);
 
 	// Save image
 	WP::labelToBinaryImage(markers).save(argv[2]);
@@ -39,7 +43,7 @@ int main(int argc, char** argv)
 	// return 0;
 
 	// Move to the derivative space
-	auto sobelImg = WP::sobelFilter(WP::rgbImageIntensity(image));
+	auto sobelImg = WP::sobelFilter(bluredImageIntensity);
 	sobelImg.save("images/sobel.ppm");
 
 	// This will serve as guide to the watershed algorithm
@@ -47,7 +51,7 @@ int main(int argc, char** argv)
 	regularizedSobelImg.save("images/spatialRegularization.ppm");
 
 	// Generate watershed origins
-	const auto watershedSources = WP::makeWatershedMarkers(sobelImg, sigma);
+	const auto watershedSources = WP::makeWatershedMarkers(sobelImg, sigma, cellScale);
 	WP::labelToBinaryImage(watershedSources).save("images/sources.ppm");
 	auto sources = LibTIM::Image<LibTIM::RGB>(image.getSizeX(), image.getSizeY());
 	for (size_t x = 0; x < sources.getSizeX(); ++x)

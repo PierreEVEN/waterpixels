@@ -1,5 +1,7 @@
 #include "waterpixels/waterpixels.hpp"
 
+#include <unordered_set>
+
 #include "waterpixels/utils.hpp"
 
 #include <libtim/Algorithms/ConnectedComponents.hxx>
@@ -8,15 +10,39 @@
 
 #include <glm/glm.hpp>
 
+template <>
+struct std::hash<glm::ivec2>
+{
+	std::size_t operator()(const glm::ivec2& k) const
+	{
+		using std::size_t;
+		using std::hash;
+		using std::string;
+
+		// Compute individual hash values for first,
+		// second and third and combine them using XOR
+		// and bit shifting:
+
+		return ((hash<int>()(k.x)
+			^ (hash<int>()(k.y) << 1)) >> 1);
+	}
+};
+
+
 namespace WP
 {
+	glm::ivec2 clampPointToImage(LibTIM::Image<LibTIM::TLabel> image, glm::ivec2 point)
+	{
+		return glm::ivec2{
+			std::clamp(point.x, 0, image.getSizeX() - 1), std::clamp(point.y, 0, image.getSizeY() - 1)
+		};
+	}
+
 	template <typename Lambda_T>
 	void iterateConnectedComponent(LibTIM::Image<LibTIM::TLabel> background, int ccOffset, const glm::ivec2& start,
 	                               Lambda_T callback)
 	{
-		const auto centerClamped = glm::ivec2{
-			std::clamp(start.x, 0, background.getSizeX() - 1), std::clamp(start.y, 0, background.getSizeY() - 1)
-		};
+		const auto centerClamped = clampPointToImage(background, start);
 		const unsigned long componentValue = background(centerClamped.x, centerClamped.y);
 		std::vector testedPoints = {centerClamped};
 		background(centerClamped.x, centerClamped.y) += ccOffset;
@@ -68,17 +94,22 @@ namespace WP
 					int(static_cast<float>(y) / sigma) * sigma + sigma / 2.f
 				};
 				glm::vec2 currentPixel{x, y};
+				const auto delta = currentPixel - closestCenter;
+
+				// Compute L1 distance from point to center
 				float d = std::max(std::abs(currentPixel.x - closestCenter.x),
 				                   std::abs(currentPixel.y - closestCenter.y));
 
-				regularizedImg(x, y) = static_cast<LibTIM::U8>(image(x, y) + k * ((2.f * d) / sigma));
+				regularizedImg(x, y) = static_cast<LibTIM::U8>(std::min(
+					static_cast<int>(image(x, y) + k * (2.f * d / sigma)), 255));
 			}
 		}
 
 		return regularizedImg;
 	}
 
-	LibTIM::Image<LibTIM::TLabel> makeWatershedMarkers(const LibTIM::Image<LibTIM::U8>& source, float sigma)
+	LibTIM::Image<LibTIM::TLabel> makeWatershedMarkers(const LibTIM::Image<LibTIM::U8>& source, float sigma,
+	                                                   float cellScale)
 	{
 		LibTIM::Image<LibTIM::TLabel> markers(source.getSizeX(), source.getSizeY());
 		LibTIM::Image<LibTIM::TLabel> voronoiMap(source.getSizeX(), source.getSizeY());
@@ -113,47 +144,88 @@ namespace WP
 
 		for (const auto& center : centers)
 		{
-			std::vector<glm::ivec2> ccPoints;
+			std::vector<glm::ivec2> cellPoints;
+			iterateConnectedComponent(voronoiMap, centers.size(), center, [&](const glm::ivec2& point)
+			{
+				cellPoints.emplace_back(point);
+			});
+
+			// 3) Apply homothety on the cell points;
+			std::unordered_set<glm::ivec2> movedPoints;
+			for (const auto& point : cellPoints)
+			{
+				const auto pointToCenter = glm::vec2(center - point);
+				const auto distance = length(pointToCenter);
+				const auto newPos = center + glm::ivec2(normalize(-pointToCenter) * distance * cellScale);
+				if (source.isPosValid(newPos.x, newPos.y))
+					movedPoints.insert(newPos);
+			}
+
+			cellPoints.clear();
+			for (const auto& point : movedPoints)
+				cellPoints.emplace_back(point);
 
 			// 2) Search the local minimum in each voronoi cell
 			float minValue = FLT_MAX;
-			iterateConnectedComponent(voronoiMap, centers.size(), center, [&](const glm::ivec2& point)
-			{
+			for (const auto& point : cellPoints)
 				if (const float val = source(point.x, point.y); val < minValue)
 					minValue = val;
-				ccPoints.emplace_back(point);
-			});
 
-			for (const auto& point : ccPoints)
+			for (const auto& point : cellPoints)
 				if (const float val = source(point.x, point.y); std::abs(val - minValue) < WP_MARKER_EPSILON)
 					markers(point.x, point.y) = 1;
 
 			// 3) Keep only largest cell
-			size_t newCCIndex = 2;
-			size_t maxSize = 0;
-			size_t maxIndex = 0;
-			std::vector<std::pair<size_t, std::vector<glm::ivec2>>> componentSizes;
-			for (const auto& point : ccPoints)
+#if PREFER_CELL_CENTER
+			float selectedValue = FLT_MAX;
+#else
+			int selectedValue = 0;
+#endif
+			size_t selectedIndex = 0;
+			std::vector<std::vector<glm::ivec2>> componentSizes;
+			for (const auto& point : cellPoints)
 			{
 				if (markers(point.x, point.y) == 1)
 				{
+#if PREFER_CELL_CENTER
+					/* VERSION WITH CLOSEST Connected Component */
+					float minDistance = FLT_MAX;
 					std::vector<glm::ivec2> componentElements;
-					iterateConnectedComponent(markers, 1, point, [&](const glm::ivec2 point)
+					iterateConnectedComponent(markers, 1, point, [&](const glm::ivec2& pt)
 					{
-						componentElements.emplace_back(point);
+						componentElements.emplace_back(pt);
+						const auto delta = pt - center;
+						const auto distance = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+						if (distance < minDistance)
+							minDistance = distance;
 					});
-					if (componentElements.size() > maxSize)
+					if (minDistance < selectedValue)
 					{
-						maxSize = componentElements.size();
-						maxIndex = componentSizes.size();
+						selectedValue = minDistance;
+						selectedIndex = componentSizes.size();
 					}
-					componentSizes.emplace_back(std::pair{newCCIndex + 1, componentElements});
+#else
+					/* VERSION WITH LARGEST Connected Component */
+					std::vector<glm::ivec2> componentElements;
+					iterateConnectedComponent(markers, 1, point, [&](const glm::ivec2& pt)
+					{
+						componentElements.emplace_back(pt);
+					});
+					if (componentElements.size() > selectedValue)
+					{
+						selectedValue = componentElements.size();
+						selectedIndex = componentSizes.size();
+					}
+#endif
+					componentSizes.emplace_back(componentElements);
 				}
 			}
+			if (componentSizes.empty())
+				componentSizes = {{clampPointToImage(source, center)}};
 
-			for (const auto& point : ccPoints)
+			for (const auto& point : cellPoints)
 				markers(point.x, point.y) = 0;
-			for (const auto& ccPoint : componentSizes[maxIndex].second)
+			for (const auto& ccPoint : componentSizes[selectedIndex])
 				markers(ccPoint.x, ccPoint.y) = 1;
 		}
 
@@ -162,7 +234,7 @@ namespace WP
 	}
 
 
-	LibTIM::Image<LibTIM::TLabel> waterpixel(const LibTIM::Image<LibTIM::U8>& grayScaleImage, float sigma, float k)
+	LibTIM::Image<LibTIM::TLabel> waterpixel(const LibTIM::Image<LibTIM::U8>& grayScaleImage, float sigma, float k, float cellScale)
 	{
 		// Move to the derivative space
 		const auto sobelImg = sobelFilter(grayScaleImage);
@@ -171,7 +243,7 @@ namespace WP
 		auto regularizedSobelImg = spatialRegularization(sobelImg, sigma, k);
 
 		// Generate watershed origins
-		auto watershedSources = makeWatershedMarkers(sobelImg, sigma);
+		auto watershedSources = makeWatershedMarkers(sobelImg, sigma, cellScale);
 
 		LibTIM::FlatSE connectivity;
 		connectivity.make2DN4();
