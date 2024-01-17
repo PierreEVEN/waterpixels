@@ -69,9 +69,7 @@ int main(int argc, char** argv)
 
 	filter.make2DN4();
 	const auto markerDelimitation = morphologicalGradient(markers, filter);
-
-	WP::labelToImage(markerDelimitation).save("images/test.ppm");
-
+	
 	// Save image
 	WP::labelToBinaryImage(markerDelimitation).save(argv[2]);
 
