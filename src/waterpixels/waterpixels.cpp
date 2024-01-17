@@ -12,19 +12,20 @@ namespace WP
 {
 	template <typename Lambda_T>
 	void iterateConnectedComponent(LibTIM::Image<LibTIM::TLabel> background, int ccOffset, const glm::ivec2& start,
-	                               Lambda_T l)
+	                               Lambda_T callback)
 	{
 		const auto centerClamped = glm::ivec2{
 			std::clamp(start.x, 0, background.getSizeX() - 1), std::clamp(start.y, 0, background.getSizeY() - 1)
 		};
 		const unsigned long componentValue = background(centerClamped.x, centerClamped.y);
 		std::vector testedPoints = {centerClamped};
+		background(centerClamped.x, centerClamped.y) += ccOffset;
 		while (!testedPoints.empty())
 		{
 			const auto point = testedPoints.back();
 			testedPoints.pop_back();
 
-			l(point);
+			callback(point);
 
 			const auto testPosition = [&](const glm::ivec2& pos)
 			{
@@ -112,65 +113,51 @@ namespace WP
 
 		for (const auto& center : centers)
 		{
+			std::vector<glm::ivec2> ccPoints;
+
 			// 2) Search the local minimum in each voronoi cell
 			float minValue = FLT_MAX;
 			iterateConnectedComponent(voronoiMap, centers.size(), center, [&](const glm::ivec2& point)
 			{
 				if (const float val = source(point.x, point.y); val < minValue)
 					minValue = val;
+				ccPoints.emplace_back(point);
 			});
 
-			iterateConnectedComponent(voronoiMap, -centers.size(), center, [&](const glm::ivec2& point)
-			{
+			for (const auto& point : ccPoints)
 				if (const float val = source(point.x, point.y); std::abs(val - minValue) < WP_MARKER_EPSILON)
 					markers(point.x, point.y) = 1;
-			});
+
 			// 3) Keep only largest cell
 			size_t newCCIndex = 2;
-			std::vector<std::pair<size_t, size_t>> componentSizes;
-			iterateConnectedComponent(voronoiMap, centers.size(), center, [&](const glm::ivec2& point)
+			size_t maxSize = 0;
+			size_t maxIndex = 0;
+			std::vector<std::pair<size_t, std::vector<glm::ivec2>>> componentSizes;
+			for (const auto& point : ccPoints)
 			{
-					if (markers(point.x, point.y) == 1) {
-						size_t CCSize = 0;
-						iterateConnectedComponent(markers, newCCIndex, point, [&](const glm::ivec2)
-							{
-								CCSize++;
-							});
-						std::cout << newCCIndex + 1 << " / " << CCSize << std::endl;
-						componentSizes.emplace_back(std::pair{ newCCIndex + 1, CCSize });
-						newCCIndex++;
+				if (markers(point.x, point.y) == 1)
+				{
+					std::vector<glm::ivec2> componentElements;
+					iterateConnectedComponent(markers, 1, point, [&](const glm::ivec2 point)
+					{
+						componentElements.emplace_back(point);
+					});
+					if (componentElements.size() > maxSize)
+					{
+						maxSize = componentElements.size();
+						maxIndex = componentSizes.size();
 					}
-			});
-			LibTIM::Image<LibTIM::U8> testImg(source.getSizeX(), source.getSizeY());
-			for (size_t x = 0; x < source.getSizeX(); ++x)
-				for (size_t y = 0; y < source.getSizeY(); ++y)
-					testImg(x, y) = markers(x, y) == 1 ? 255 : markers(x, y) == 0 ? 0 : 128;
-			testImg.save("images/v1.ppm");
-
-			labelToBinaryImage(markers).save("images/test.ppm");
-			break;
-
-			auto maxCCSize = 0;
-			auto maxCC = componentSizes[0].first;
-			for (const auto& p: componentSizes)
-			{
-				if (p.second > maxCCSize) {
-					maxCC = p.first;
-					maxCCSize = p.second;
+					componentSizes.emplace_back(std::pair{newCCIndex + 1, componentElements});
 				}
 			}
-			iterateConnectedComponent(voronoiMap, -centers.size(), center, [&](const glm::ivec2& point)
-				{
-					if (markers(point.x, point.y) == maxCC)
-						markers(point.x, point.y) = 1;
-					else
-						markers(point.x, point.y) = 0;
-				});
 
-			break;
+			for (const auto& point : ccPoints)
+				markers(point.x, point.y) = 0;
+			for (const auto& ccPoint : componentSizes[maxIndex].second)
+				markers(ccPoint.x, ccPoint.y) = 1;
 		}
 
-
+		labelToBinaryImage(markers).save("images/test.ppm");
 		return markers;
 	}
 

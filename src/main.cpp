@@ -1,6 +1,9 @@
 #include <iostream>
 #include <filesystem>
 
+#include "Algorithms/ConnectedComponents.hxx"
+#include "Algorithms/Watershed.hxx"
+#include "Common/FlatSE.h"
 #include "waterpixels/utils.hpp"
 #include "waterpixels/waterpixels.hpp"
 
@@ -27,8 +30,47 @@ int main(int argc, char** argv)
 	LibTIM::Image<LibTIM::RGB>::load(argv[1], image);
 
 	// Waterpixels algorithm
-	const auto markers = WP::waterpixel(WP::rgbImageIntensity(image), 50, 5);
+	const auto markers = WP::waterpixel(WP::rgbImageIntensity(image), sigma, k);
 
 	// Save image
 	WP::labelToBinaryImage(markers).save(argv[2]);
+
+
+	// return 0;
+
+	// Move to the derivative space
+	auto sobelImg = WP::sobelFilter(WP::rgbImageIntensity(image));
+	sobelImg.save("images/sobel.ppm");
+
+	// This will serve as guide to the watershed algorithm
+	auto regularizedSobelImg = WP::spatialRegularization(sobelImg, sigma, k);
+	regularizedSobelImg.save("images/spatialRegularization.ppm");
+
+	// Generate watershed origins
+	const auto watershedSources = WP::makeWatershedMarkers(sobelImg, sigma);
+	WP::labelToBinaryImage(watershedSources).save("images/sources.ppm");
+	auto sources = LibTIM::Image<LibTIM::RGB>(image.getSizeX(), image.getSizeY());
+	for (size_t x = 0; x < sources.getSizeX(); ++x)
+		for (size_t y = 0; y < sources.getSizeY(); ++y)
+		{
+			sources(x, y) = LibTIM::RGB({0, 0, 0});
+			if (x % static_cast<int>(sigma) == 0 || y % static_cast<int>(sigma) == 0)
+				sources(x, y)[0] = 255;
+			if (watershedSources(x, y))
+				sources(x, y)[1] = 255;
+		}
+	for (const auto& point : WP::makePoints(sobelImg.getSizeX(), sobelImg.getSizeY(), sigma))
+		if (sources.isPosValid(point.x, point.y))
+			sources(point.x, point.y)[2] = 255;
+	sources.save("images/sources.pgm");
+
+	auto result = LibTIM::Image<LibTIM::RGB>(image.getSizeX(), image.getSizeY());
+	for (size_t x = 0; x < result.getSizeX(); ++x)
+		for (size_t y = 0; y < result.getSizeY(); ++y)
+		{
+			result(x, y) = image(x, y);
+			if (markers(x, y))
+				result(x, y) = LibTIM::RGB({255, 255, 255});
+		}
+	result.save("images/final.pgm");
 }
