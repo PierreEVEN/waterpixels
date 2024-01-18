@@ -31,7 +31,7 @@ struct std::hash<glm::ivec2>
 
 namespace WP
 {
-	glm::ivec2 clampPointToImage(LibTIM::Image<LibTIM::TLabel> image, glm::ivec2 point)
+	glm::ivec2 clampPointToImage(const LibTIM::Image<LibTIM::TLabel>& image, glm::ivec2 point)
 	{
 		return glm::ivec2{
 			std::clamp(point.x, 0, image.getSizeX() - 1), std::clamp(point.y, 0, image.getSizeY() - 1)
@@ -173,10 +173,10 @@ namespace WP
 #else
 			int selectedValue = 0;
 #endif
+
 			size_t selectedIndex = 0;
 			std::vector<std::vector<glm::ivec2>> componentSizes;
 			{
-				MEASURE_ADD_CUMULATOR(cellFilterBestTarget);
 				for (const auto& point : cellPoints)
 				{
 					if (markers(point.x, point.y) == 1)
@@ -187,6 +187,7 @@ namespace WP
 						std::vector<glm::ivec2> componentElements;
 						{
 							MEASURE_ADD_CUMULATOR(iterateSubCellComponents);
+
 							iterateConnectedComponent(markers, 1, point, [&](const glm::ivec2& pt)
 							{
 								componentElements.emplace_back(pt);
