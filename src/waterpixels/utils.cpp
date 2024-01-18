@@ -76,7 +76,7 @@ namespace WP
 		{
 			if (t > 0.008856)
 				return std::pow(t, 1.f / 3.f);
-			
+
 			return 7.7787f * t + 16.f / 116.f;
 		};
 
@@ -97,15 +97,15 @@ namespace WP
 
 		float kernelX[3][3] = {{-1 - 2, -1}, {0, 0, 0}, {1, 2, 1}};
 		float kernelY[3][3] = {{1, 0, -1}, {2, 0, -2}, {1, 0, -1}};
-		#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2)
 		for (int y = 0; y < dy; y++)
 		{
 			for (int x = 0; x < dx; x++)
 			{
-				int startY = y - 1;
-				int startX = x - 1;
-				int endY = y + 1;
-				int endX = x + 1;
+				const int startY = y - 1;
+				const int startX = x - 1;
+				const int endY = y + 1;
+				const int endX = x + 1;
 
 				float resX = 0.0f;
 				float resY = 0.0f;
@@ -134,7 +134,7 @@ namespace WP
 	LibTIM::Image<LibTIM::U8> labelToImage(const LibTIM::Image<LibTIM::TLabel>& image)
 	{
 		LibTIM::Image<LibTIM::TLabel> binaryImage(image.getSizeX(), image.getSizeY());
-		#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2)
 		for (int x = 0; x < binaryImage.getSizeX(); x++)
 			for (int y = 0; y < binaryImage.getSizeY(); y++)
 				binaryImage(x, y) = image(x, y);
@@ -144,7 +144,7 @@ namespace WP
 	LibTIM::Image<LibTIM::U8> labelToBinaryImage(const LibTIM::Image<LibTIM::TLabel>& image)
 	{
 		LibTIM::Image<LibTIM::TLabel> binaryImage(image.getSizeX(), image.getSizeY());
-		#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2)
 		for (int x = 0; x < binaryImage.getSizeX(); x++)
 			for (int y = 0; y < binaryImage.getSizeY(); y++)
 				binaryImage(x, y) = image(x, y) ? 255 : 0;
@@ -154,7 +154,7 @@ namespace WP
 	LibTIM::Image<LibTIM::TLabel> imageToBinaryLabel(const LibTIM::Image<LibTIM::U8>& image)
 	{
 		LibTIM::Image<LibTIM::U8> binaryLabels(image.getSizeX(), image.getSizeY());
-		#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2)
 		for (int x = 0; x < image.getSizeX(); x++)
 			for (int y = 0; y < image.getSizeY(); y++)
 				binaryLabels(x, y) = image(x, y) ? 1 : 0;
@@ -168,13 +168,14 @@ namespace WP
 	VoronoiGraph::VoronoiGraph(size_t _width, size_t _height, const std::vector<glm::ivec2>& centers) :
 		voronoiCells(centers.size()), width(_width), height(_height)
 	{
-		// Estimate center density
+		// Estimate center average spacing
 		const auto approxSigma = std::sqrt(_width * _height) / std::sqrt(centers.size());
 
 		// Compute bounds
 		glm::ivec2 min = centers[0];
 		glm::ivec2 max = centers[0];
-		for (const auto& point : centers) {
+		for (const auto& point : centers)
+		{
 			if (point.x < min.x)
 				min.x = point.x;
 			if (point.y < min.y)
@@ -184,100 +185,70 @@ namespace WP
 			if (point.y > max.y)
 				max.y = point.y;
 		}
-
 		const auto size = max - min;
 
-		// Place centers in a 2D grid
+		// Generate a 2D grid
+		const auto gridRes = glm::ivec2(size.x / approxSigma, size.y / approxSigma);
+		std::vector<std::vector<std::pair<size_t, glm::ivec2>>> cellGrid((gridRes.x + 1) * (gridRes.y + 1));
 
-		const auto gridRes = glm::ivec2((size.x / approxSigma * (static_cast<float>(size.x / size.y)) + 2), (size.y / approxSigma * (static_cast<float>(size.x / size.y)) + 2));
-		std::vector<std::vector<std::pair<size_t, glm::ivec2>>> cellGrid(gridRes.x * gridRes.y);
-
-#pragma omp parallel for
-		for (int64_t i = 0; i < centers.size(); ++i)
+		const auto imageToGrid = [&](const glm::ivec2& image)
 		{
-			const auto gridPos = glm::ivec2(glm::vec2(centers[i]) / static_cast<float>(approxSigma));
-			cellGrid[gridPos.x + gridPos.y * gridRes.x].emplace_back(std::pair{ i, centers[i] });
-		}
+			return glm::ivec2(glm::vec2(image) / static_cast<float>(approxSigma));
+		};
 
-		const auto fetchGrid = [&](int x, int y) -> std::vector<std::pair<size_t, glm::ivec2>>
+		const auto isGridPosValid = [&](int x, int y)
+		{
+			return !(x < 0 || y < 0 || x > gridRes.x || y > gridRes.y);
+		};
+
+		const auto fetchGrid = [&](const glm::ivec2& pos) -> std::vector<std::pair<size_t, glm::ivec2>>&
+		{
+			if (!isGridPosValid(pos.x, pos.y))
 			{
-				if (x < 0 || y < 0 || x > gridRes.x || y > gridRes.y)
-					return {};
-				return cellGrid[x + y * gridRes.x];
-			};
+				std::cerr << "invalid grid pos : " << pos.x << "x" << pos.y << std::endl;
+				throw std::runtime_error("invalid grid pos");
+			}
+			return cellGrid[pos.x + pos.y * gridRes.x];
+		};
 
-		// @TODO : accelerate using a grid map
+		// Place centers in the 2D grid
+		for (int64_t i = 0; i < centers.size(); ++i)
+			for (int x = -1; x <= 1; ++x)
+				for (int y = -1; y <= 1; ++y) {
+					const auto pos = imageToGrid(centers[i]) + glm::ivec2(x, y);
+					if (isGridPosValid(pos.x, pos.y))
+						fetchGrid(pos).emplace_back(std::pair{i, centers[i]});
+				}
+		
 		const auto getClosestCenter = [&](const glm::ivec2& pos) -> unsigned long
 		{
-			const auto gridPos = glm::ivec2(glm::vec2(pos) / static_cast<float>(approxSigma));
+			const auto gridPos = imageToGrid(pos);
 
 			float closestDistance = FLT_MAX;
 			size_t closestIndex = 0;
 
-			for (int level = 1; level <= 5; ++level) {
+			for (const auto& point : fetchGrid({gridPos.x, gridPos.y}))
+					{
+						//MEASURE_ADD_CUMULATOR(voronoi2);
+						const auto delta = centers[point.first] - point.second;
+						const auto distance = static_cast<float>(std::sqrt(delta.x * delta.x + delta.y * delta.y));
+						if (distance < closestDistance)
+						{
+							closestDistance = distance;
+							closestIndex = point.first;
+						}
+					}
 
-				for (int i = -level; i < level; ++i)
-				{
-					for (const auto& point : fetchGrid(gridPos.x + level, (gridPos.y + i) * gridRes.x))
-					{
-						const auto delta = centers[point.first] - point.second;
-						const auto distance = static_cast<float>(std::sqrt(delta.x * delta.x + delta.y * delta.y));
-						if (distance < closestDistance)
-						{
-							closestDistance = distance;
-							closestIndex = point.first;
-						}
-					}
-				}
-				for (int i = -level; i < level; ++i)
-				{
-					for (const auto& point : fetchGrid(gridPos.x - level, (gridPos.y + i) * gridRes.x))
-					{
-						const auto delta = centers[point.first] - point.second;
-						const auto distance = static_cast<float>(std::sqrt(delta.x * delta.x + delta.y * delta.y));
-						if (distance < closestDistance)
-						{
-							closestDistance = distance;
-							closestIndex = point.first;
-						}
-					}
-				}
-				for (int i = -level; i < level; ++i)
-				{
-					for (const auto& point : fetchGrid(gridPos.x + i, (gridPos.y + level) * gridRes.x))
-					{
-						const auto delta = centers[point.first] - point.second;
-						const auto distance = static_cast<float>(std::sqrt(delta.x * delta.x + delta.y * delta.y));
-						if (distance < closestDistance)
-						{
-							closestDistance = distance;
-							closestIndex = point.first;
-						}
-					}
-				}
-				for (int i = -level; i < level; ++i)
-				{
-					for (const auto& point : fetchGrid(gridPos.x + i, (gridPos.y - level) * gridRes.x))
-					{
-						const auto delta = centers[point.first] - point.second;
-						const auto distance = static_cast<float>(std::sqrt(delta.x * delta.x + delta.y * delta.y));
-						if (distance < closestDistance)
-						{
-							closestDistance = distance;
-							closestIndex = point.first;
-						}
-					}
-				}
-				if (closestDistance < FLT_MAX)
-					return closestIndex;
-			}
+			if (closestDistance < FLT_MAX)
+				return closestIndex;
+			
 			std::cerr << "failed to find voronoi center" << std::endl;
 			throw std::runtime_error("failed to find voronoi center");
 		};
 
 #pragma omp parallel for
 		for (int64_t i = 0; i < centers.size(); ++i)
-			voronoiCells[i] = { centers[i], {} };
+			voronoiCells[i] = {centers[i], {}};
 
 		for (int64_t x = 0; x < width; ++x)
 			for (int64_t y = 0; y < height; ++y)
@@ -305,7 +276,7 @@ namespace WP
 		connectivity.make2DN4();
 		const auto borders = morphologicalGradient(stamp, connectivity);
 
-		#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2)
 		for (int64_t x = 0; x < width; ++x)
 			for (int64_t y = 0; y < height; ++y)
 				result(x, y)[1] = borders(x, y) ? 255 : 0;

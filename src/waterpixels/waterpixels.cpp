@@ -72,7 +72,7 @@ namespace WP
 	LibTIM::Image<LibTIM::U8> rgbImageIntensity(const LibTIM::Image<LibTIM::RGB>& image)
 	{
 		LibTIM::Image<LibTIM::U8> lImage(image.getSizeX(), image.getSizeY());
-		#pragma omp parallel for collapse(2)
+#pragma omp parallel for collapse(2)
 		for (int x = 0; x < image.getSizeX(); x++)
 			for (int y = 0; y < image.getSizeY(); y++)
 				lImage(x, y) = static_cast<LibTIM::U8>(rgbToCIELAB(image(x, y)).r / 100.f * 255.f);
@@ -118,24 +118,18 @@ namespace WP
 		MEASURE_CUMULATIVE_DURATION(cellFilterBestTarget,
 		                            "Filter and keep only the best connected component for each cell");
 		MEASURE_CUMULATIVE_DURATION(iterateSubCellComponents,
-			"Local cell component iteration");
+		                            "Local cell component iteration");
 
 		const auto& cells = voronoiCells.cells();
 
 		std::mutex lastMutex;
 		auto last = std::chrono::steady_clock::now();
 
+		std::atomic_int64_t handledCells = 0;
+
 #pragma omp parallel for
 		for (int64_t ci = 0; ci < cells.size(); ++ci)
 		{
-			if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - last).count() >= 1000)
-			{
-				std::lock_guard m(lastMutex);
-				last = std::chrono::steady_clock::now();
-				std::cout << "Watershed markers generation : " << static_cast<float>(ci) / cells.size() * 100 << "% ..." << std::endl;
-			}
-
-
 			const auto& cell = cells[ci];
 			MEASURE_ADD_CUMULATOR(cellMarkerAvg);
 			const auto& center = cell.first;
@@ -194,13 +188,13 @@ namespace WP
 						{
 							MEASURE_ADD_CUMULATOR(iterateSubCellComponents);
 							iterateConnectedComponent(markers, 1, point, [&](const glm::ivec2& pt)
-								{
-									componentElements.emplace_back(pt);
-									const auto delta = pt - center;
-									const auto distance = std::sqrt(delta.x * delta.x + delta.y * delta.y);
-									if (distance < minDistance)
-										minDistance = distance;
-								});
+							{
+								componentElements.emplace_back(pt);
+								const auto delta = pt - center;
+								const auto distance = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+								if (distance < minDistance)
+									minDistance = distance;
+							});
 						}
 						if (minDistance < selectedValue)
 						{
@@ -235,6 +229,17 @@ namespace WP
 			for (const auto& ccPoint : componentSizes[selectedIndex])
 				markers(ccPoint.x, ccPoint.y) = cellIndex;
 			cellIndex++;
+
+			if (std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - last).count()
+				>= 1000)
+			{
+				std::lock_guard m(lastMutex);
+				last = std::chrono::steady_clock::now();
+				std::cout << "Watershed markers generation : " << static_cast<float>(++handledCells) / cells.size() *
+					100 << "% (" << handledCells << "/" << cells.size() << ") ..." << std::endl;
+			}
+			else
+				++handledCells;
 		}
 
 		return markers;
