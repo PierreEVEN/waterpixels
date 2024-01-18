@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.12)
-project(WATERPXIELS LANGUAGES CXX C)
+project(Waterpixels LANGUAGES CXX C)
 
 # Enable C++17
 set(CMAKE_CXX_STANDARD 17)

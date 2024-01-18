@@ -88,10 +88,12 @@ namespace WP
 			const auto& center = cell.first;
 			for (const auto& point : cell.second)
 			{
-				// Compute Linf distance from point to center
-				//const float d = std::max(std::abs(point.x - center.x),std::abs(point.y - center.y));
+#if USE_LINF_REG_DISTANCE
+				const float d = std::max(std::abs(point.x - center.x),std::abs(point.y - center.y));
+#else
 				const auto delta = point - center;
 				const float d = std::sqrt(delta.x * delta.x + delta.y * delta.y);
+#endif
 
 				result(point.x, point.y) = static_cast<LibTIM::U8>(std::min(
 					static_cast<int>(source(point.x, point.y) + k * (2.f * d / sigma)), 255));

@@ -5,6 +5,7 @@
 #include <libtim/Common/Types.h>
 #include <libtim/Common/Image.h>
 #include <glm/glm.hpp>
+#include "config.hpp"
 
 #ifndef ENABLE_PROFILER
 #define ENABLE_PROFILER true

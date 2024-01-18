@@ -3,10 +3,13 @@
 
 #include <libtim/Algorithms/Morphology.h>
 #include <libtim/Common/FlatSE.h>
-#include "waterpixels/utils.hpp"
-#include "waterpixels/waterpixels.hpp"
+#include <waterpixels/utils.hpp>
+#include <waterpixels/waterpixels.hpp>
+#include <waterpixels/config.hpp>
 
+#ifndef OUTPUT_DEBUG
 #define OUTPUT_DEBUG false
+#endif
 
 #if OUTPUT_DEBUG
 #include <Algorithms/ConnectedComponents.h>

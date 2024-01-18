@@ -1,6 +1,7 @@
 #pragma once
 #include <libtim/Common/Image.h>
 #include <libtim/Common/Types.h>
+#include "config.hpp"
 
 #include "glm/vec2.hpp"
 
@@ -12,6 +13,10 @@
 #ifndef PREFER_CELL_CENTER
 #define PREFER_CELL_CENTER true
 #endif // PREFER_CELL_CENTER
+
+#ifndef USE_LINF_REG_DISTANCE
+#define USE_LINF_REG_DISTANCE false
+#endif // USE_LINF_REG_DISTANCE
 
 namespace WP
 {
