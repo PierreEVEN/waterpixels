@@ -213,35 +213,37 @@ namespace WP
 
 		// Place centers in the 2D grid
 		for (int64_t i = 0; i < centers.size(); ++i)
-			for (int x = -1; x <= 1; ++x)
-				for (int y = -1; y <= 1; ++y) {
+		{
+			constexpr int radius = 1;
+			for (int x = -radius; x <= radius; ++x)
+				for (int y = -radius; y <= radius; ++y)
+				{
 					const auto pos = imageToGrid(centers[i]) + glm::ivec2(x, y);
 					if (isGridPosValid(pos.x, pos.y))
 						fetchGrid(pos).emplace_back(std::pair{i, centers[i]});
 				}
-		
+		}
+
 		const auto getClosestCenter = [&](const glm::ivec2& pos) -> unsigned long
 		{
-			const auto gridPos = imageToGrid(pos);
-
 			float closestDistance = FLT_MAX;
 			size_t closestIndex = 0;
-
+			
+			const auto gridPos = imageToGrid(pos);
 			for (const auto& point : fetchGrid({gridPos.x, gridPos.y}))
-					{
-						//MEASURE_ADD_CUMULATOR(voronoi2);
-						const auto delta = centers[point.first] - point.second;
-						const auto distance = static_cast<float>(std::sqrt(delta.x * delta.x + delta.y * delta.y));
-						if (distance < closestDistance)
-						{
-							closestDistance = distance;
-							closestIndex = point.first;
-						}
-					}
+			{
+				const auto delta = pos - point.second;
+				const auto distance = static_cast<float>(std::sqrt(delta.x * delta.x + delta.y * delta.y));
+				if (distance < closestDistance)
+				{
+					closestDistance = distance;
+					closestIndex = point.first;
+				}
+			}
 
 			if (closestDistance < FLT_MAX)
 				return closestIndex;
-			
+
 			std::cerr << "failed to find voronoi center" << std::endl;
 			throw std::runtime_error("failed to find voronoi center");
 		};
