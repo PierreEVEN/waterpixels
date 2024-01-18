@@ -47,10 +47,12 @@ namespace WP
 	LibTIM::Image<LibTIM::TLabel> imageToBinaryLabel(const LibTIM::Image<LibTIM::U8>& image);
 
 	/******** MORPHOLOGICAL OPERATIONS ********/
+
 	// Apply a 3x3 sobel filter
 	LibTIM::Image<LibTIM::U8> sobelFilter(LibTIM::Image<LibTIM::U8> image);
 
-	// Generate a voronoi graph
+	/******** VORONOI GRAPHS ********/
+
 	class VoronoiGraph
 	{
 	public:

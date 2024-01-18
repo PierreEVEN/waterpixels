@@ -168,26 +168,116 @@ namespace WP
 	VoronoiGraph::VoronoiGraph(size_t _width, size_t _height, const std::vector<glm::ivec2>& centers) :
 		voronoiCells(centers.size()), width(_width), height(_height)
 	{
-		for (size_t i = 0; i < centers.size(); ++i)
-			voronoiCells[i] = {centers[i], {}};
+		// Estimate center density
+		const auto approxSigma = std::sqrt(_width * _height) / std::sqrt(centers.size());
+
+		// Compute bounds
+		glm::ivec2 min = centers[0];
+		glm::ivec2 max = centers[0];
+		for (const auto& point : centers) {
+			if (point.x < min.x)
+				min.x = point.x;
+			if (point.y < min.y)
+				min.y = point.y;
+			if (point.x > max.x)
+				max.x = point.x;
+			if (point.y > max.y)
+				max.y = point.y;
+		}
+
+		const auto size = max - min;
+
+		// Place centers in a 2D grid
+
+		const auto gridRes = glm::ivec2((size.x / approxSigma * (static_cast<float>(size.x / size.y)) + 2), (size.y / approxSigma * (static_cast<float>(size.x / size.y)) + 2));
+		std::vector<std::vector<std::pair<size_t, glm::ivec2>>> cellGrid(gridRes.x * gridRes.y);
+
+#pragma omp parallel for
+		for (int64_t i = 0; i < centers.size(); ++i)
+		{
+			const auto gridPos = glm::ivec2(glm::vec2(centers[i]) / static_cast<float>(approxSigma));
+			cellGrid[gridPos.x + gridPos.y * gridRes.x].emplace_back(std::pair{ i, centers[i] });
+		}
+
+		const auto fetchGrid = [&](int x, int y) -> std::vector<std::pair<size_t, glm::ivec2>>
+			{
+				if (x < 0 || y < 0 || x > gridRes.x || y > gridRes.y)
+					return {};
+				return cellGrid[x + y * gridRes.x];
+			};
 
 		// @TODO : accelerate using a grid map
 		const auto getClosestCenter = [&](const glm::ivec2& pos) -> unsigned long
 		{
+			const auto gridPos = glm::ivec2(glm::vec2(pos) / static_cast<float>(approxSigma));
+
 			float closestDistance = FLT_MAX;
 			size_t closestIndex = 0;
-			for (size_t i = 0; i < centers.size(); ++i)
-			{
-				const auto delta = centers[i] - pos;
-				const auto distance = static_cast<float>(std::sqrt(delta.x * delta.x + delta.y * delta.y));
-				if (distance < closestDistance)
+
+			for (int level = 1; level <= 5; ++level) {
+
+				for (int i = -level; i < level; ++i)
 				{
-					closestDistance = distance;
-					closestIndex = i;
+					for (const auto& point : fetchGrid(gridPos.x + level, (gridPos.y + i) * gridRes.x))
+					{
+						const auto delta = centers[point.first] - point.second;
+						const auto distance = static_cast<float>(std::sqrt(delta.x * delta.x + delta.y * delta.y));
+						if (distance < closestDistance)
+						{
+							closestDistance = distance;
+							closestIndex = point.first;
+						}
+					}
 				}
+				for (int i = -level; i < level; ++i)
+				{
+					for (const auto& point : fetchGrid(gridPos.x - level, (gridPos.y + i) * gridRes.x))
+					{
+						const auto delta = centers[point.first] - point.second;
+						const auto distance = static_cast<float>(std::sqrt(delta.x * delta.x + delta.y * delta.y));
+						if (distance < closestDistance)
+						{
+							closestDistance = distance;
+							closestIndex = point.first;
+						}
+					}
+				}
+				for (int i = -level; i < level; ++i)
+				{
+					for (const auto& point : fetchGrid(gridPos.x + i, (gridPos.y + level) * gridRes.x))
+					{
+						const auto delta = centers[point.first] - point.second;
+						const auto distance = static_cast<float>(std::sqrt(delta.x * delta.x + delta.y * delta.y));
+						if (distance < closestDistance)
+						{
+							closestDistance = distance;
+							closestIndex = point.first;
+						}
+					}
+				}
+				for (int i = -level; i < level; ++i)
+				{
+					for (const auto& point : fetchGrid(gridPos.x + i, (gridPos.y - level) * gridRes.x))
+					{
+						const auto delta = centers[point.first] - point.second;
+						const auto distance = static_cast<float>(std::sqrt(delta.x * delta.x + delta.y * delta.y));
+						if (distance < closestDistance)
+						{
+							closestDistance = distance;
+							closestIndex = point.first;
+						}
+					}
+				}
+				if (closestDistance < FLT_MAX)
+					return closestIndex;
 			}
-			return static_cast<unsigned long>(closestIndex);
+			std::cerr << "failed to find voronoi center" << std::endl;
+			throw std::runtime_error("failed to find voronoi center");
 		};
+
+#pragma omp parallel for
+		for (int64_t i = 0; i < centers.size(); ++i)
+			voronoiCells[i] = { centers[i], {} };
 
 		for (int64_t x = 0; x < width; ++x)
 			for (int64_t y = 0; y < height; ++y)
