@@ -7,7 +7,7 @@
 #include <libtim/Algorithms/ConnectedComponents.hxx>
 #include <libtim/Algorithms/Watershed.hxx>
 #include <libtim/Common/FlatSE.h>
-
+#include <atomic>
 #include <glm/glm.hpp>
 
 template <>

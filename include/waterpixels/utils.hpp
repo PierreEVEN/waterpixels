@@ -37,7 +37,7 @@ namespace WP
 
 	/******** IMAGE UTILITIES ********/
 
-	glm::vec3 rgbToCIELAB(LibTIM::RGB& pixelRGB);
+	glm::vec3 rgbToCIELAB(const LibTIM::RGB& pixelRGB);
 
 	// if image(x) > 0 then label(x) == 1
 	LibTIM::Image<LibTIM::U8> labelToImage(const LibTIM::Image<LibTIM::TLabel>& image);
