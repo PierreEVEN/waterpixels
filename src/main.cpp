@@ -15,6 +15,7 @@
 #include <Algorithms/ConnectedComponents.h>
 #endif
 
+
 int main(int argc, char** argv)
 {
 	// Read parameters
@@ -42,6 +43,7 @@ int main(int argc, char** argv)
 		LibTIM::Image<LibTIM::RGB>::load(argv[1], image);
 	}
 
+
 	/****** 2) Pre filter image to remove details ******/
 	LibTIM::FlatSE filter;
 	filter.make2DEuclidianBall(blurRadius);
@@ -50,12 +52,12 @@ int main(int argc, char** argv)
 		MEASURE_DURATION(prefiltering, "Image pre-filtering");
 		if (blurRadius >= 1)
 		{
-			preFilteredImage = closing(opening(WP::rgbImageIntensity(image), filter), filter);
+			preFilteredImage = closingNoBorder(openingNoBorder(WP::rgbImageIntensity(image), filter), filter);
 		}
 		else
 			preFilteredImage = WP::rgbImageIntensity(image);
 	}
-
+	
 	/****** 3) Choose cell centers ******/
 	std::vector<glm::ivec2> cellCenters;
 	{

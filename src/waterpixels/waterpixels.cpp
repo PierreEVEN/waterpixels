@@ -136,25 +136,32 @@ namespace WP
 
 			auto cellPoints = cell.second;
 
-			// 3) Apply homothety on the cell points;
-			std::unordered_set<glm::ivec2> movedPoints;
+			// (1) Apply homothety on the cell points;
 			{
 				MEASURE_ADD_CUMULATOR(cellHomotTot);
-				for (const auto& point : cellPoints)
-				{
+#pragma omp parallel for
+				for (int64_t i = 0; i < cellPoints.size(); ++i) {
+					const auto& point = cellPoints[i];
 					const auto pointToCenter = glm::vec2(center - point);
 					const auto distance = length(pointToCenter);
 					const auto newPos = center + glm::ivec2(normalize(-pointToCenter) * distance * cellScale);
 					if (source.isPosValid(newPos.x, newPos.y))
-						movedPoints.insert(newPos);
+						markers(newPos.x, newPos.y) = 1;
 				}
 
-				cellPoints.clear();
-				for (const auto& point : movedPoints)
-					cellPoints.emplace_back(point);
+				const std::vector<glm::ivec2> oldCellPoints = cellPoints;
+				cellPoints.clear();				
+#pragma omp parallel for
+				for (int64_t i = 0; i < oldCellPoints.size(); ++i) {
+					const auto& point = oldCellPoints[i];
+					if (markers(point.x, point.y)) {
+						cellPoints.emplace_back(point);
+						markers(point.x, point.y) = 0;
+					}
+				}
 			}
 
-			// 2) Search the local minimum in each voronoi cell
+			// (2) Search the local minimum in each voronoi cell
 			float minValue = FLT_MAX;
 			{
 				MEASURE_ADD_CUMULATOR(searchAllMin);
@@ -162,12 +169,15 @@ namespace WP
 					if (const float val = source(point.x, point.y); val < minValue)
 						minValue = val;
 
-				for (const auto& point : cellPoints)
+#pragma omp parallel for
+				for (int64_t i = 0; i < cellPoints.size(); ++i) {
+					const auto& point = cellPoints[i];
 					if (const float val = source(point.x, point.y); std::abs(val - minValue) < WP_MARKER_EPSILON)
 						markers(point.x, point.y) = 1;
+				}
 			}
 
-			// 3) Keep only largest cell
+			// (3) Keep only largest cell
 #if PREFER_CELL_CENTER
 			float selectedValue = FLT_MAX;
 #else

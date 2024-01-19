@@ -286,6 +286,7 @@ Image<T>  Image<T>::crop(const TCoord fromX, const TCoord toX,
 	Image <T> res(dx,dy,dz);
 	T min=std::numeric_limits<T>::min();
 	res.fill(min);
+#pragma omp parallel for collapse(3)
 	for(TCoord z=fromZ; z<toZ; z++)
 		for(TCoord y=fromY; y<toY; y++)
 			for(TCoord x=fromX; x<toX; x++)
@@ -302,6 +303,7 @@ void Image<VoxelType>::copy(Image<VoxelType> &im,
 		                     int x2, int y2, int z2,
 			                 int px, int py, int pz)
 {
+#pragma omp parallel for collapse(3)
 	for (int x = 0; x <= x2-x1; x++)
 	{
 		for (int y = 0; y <= y2-y1; y++)
@@ -350,6 +352,7 @@ Image<VoxelType> Image<VoxelType>::getReflection()
 
 	int *taille = getSize();
 
+#pragma omp parallel for collapse(3)
 	for (int x = 0; x < taille[0]; x++)
 	{
 		for (int y = 0; y < taille[1]; y++)

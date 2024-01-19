@@ -252,9 +252,15 @@ namespace WP
 		for (int64_t i = 0; i < centers.size(); ++i)
 			voronoiCells[i] = {centers[i], {}};
 
+		std::vector<std::mutex> cellMutex(voronoiCells.size());
+
+#pragma omp parallel for collapse(2) if(width > 1000 && height > 1000)
 		for (int64_t x = 0; x < width; ++x)
-			for (int64_t y = 0; y < height; ++y)
-				voronoiCells[getClosestCenter({x, y})].second.emplace_back(glm::ivec2{x, y});
+			for (int64_t y = 0; y < height; ++y) {
+				const auto center = getClosestCenter({ x, y });
+				std::lock_guard m(cellMutex[center]);
+				voronoiCells[center].second.emplace_back(glm::ivec2{ x, y });
+			}
 	}
 
 	LibTIM::Image<LibTIM::RGB> VoronoiGraph::debugVisualization() const
