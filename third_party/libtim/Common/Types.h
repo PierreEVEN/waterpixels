@@ -52,6 +52,7 @@ struct	Table{
 	T el[N]; 
 	T &operator[](int i)
 	{return el[i];}
+	const T &operator[](int i) const {return el[i];}
 	};
 
 //Type of RGB point

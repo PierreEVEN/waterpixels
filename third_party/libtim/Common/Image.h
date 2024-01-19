@@ -251,7 +251,7 @@ namespace LibTIM
 		}
 
 		///Coordinates read-only version
-		inline T operator()(TCoord x, TCoord y, TCoord z = 0) const
+		inline const T& operator()(TCoord x, TCoord y, TCoord z = 0) const
 		{
 			if (x < 0 || x >= size[0] || y < 0 || y >= size[1] || z < 0 || z >= size[2])
 				throw std::out_of_range("Out of range error");
@@ -262,7 +262,7 @@ namespace LibTIM
 		inline T& operator()(TOffset offset) { return data[offset]; }
 
 		///Offset read-only version
-		inline T operator()(TOffset offset) const { return data[offset]; }
+		inline const T& operator()(TOffset offset) const { return data[offset]; }
 
 		///Point write version
 		inline T& operator()(Point<TCoord> p)
@@ -273,7 +273,7 @@ namespace LibTIM
 		}
 
 		///Point read-only version
-		inline T operator()(Point<TCoord> p) const
+		inline const T& operator()(Point<TCoord> p) const
 		{
 			if (p.x < 0 || p.x >= size[0] || p.y < 0 || p.y >= size[1] || p.z < 0 || p.z >= size[2])
 				throw std::out_of_range("Out of range error");

@@ -1,6 +1,10 @@
 #include "waterpixels/utils.hpp"
 
+
+#if _WIN32
 #include <corecrt_math_defines.h>
+#endif
+
 #include <vector>
 
 #include <glm/glm.hpp>
@@ -50,7 +54,7 @@ namespace WP
 		return points;
 	}
 
-	glm::vec3 rgbToCIELAB(LibTIM::RGB& pixelRGB)
+	glm::vec3 rgbToCIELAB(const LibTIM::RGB& pixelRGB)
 	{
 		const glm::vec3 normalizedRGB(static_cast<float>(pixelRGB[0]), static_cast<float>(pixelRGB[1]),
 		                              static_cast<float>(pixelRGB[2]));
