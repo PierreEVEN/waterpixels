@@ -194,6 +194,7 @@ Image<T>::Image( const Image<T2> &im)
 template <class T>
 Image <T> &Image<T>::operator+=(Image <T> &op)
 {
+#pragma omp parallel for
 	for(int i=0; i<dataSize; i++)
 		this->data[i]+=op(i);
 	return *this;
@@ -202,6 +203,7 @@ Image <T> &Image<T>::operator+=(Image <T> &op)
 template <class T>
 Image <T> &Image<T>::operator-=(Image <T> &op)
 {
+#pragma omp parallel for
 	for(int i=0; i<dataSize; i++)
 		this->data[i]-=op(i);
 	return *this;
@@ -210,6 +212,7 @@ Image <T> &Image<T>::operator-=(Image <T> &op)
 template <class T>
 Image <T> &Image<T>::operator*=(Image <T> &op)
 {
+#pragma omp parallel for
 	for(int i=0; i<dataSize; i++)
 		this->data[i]*=op(i);
 	return *this;
@@ -218,6 +221,7 @@ Image <T> &Image<T>::operator*=(Image <T> &op)
 template <class T>
 Image <T> &Image<T>::operator&=(Image <T> &op)
 {
+#pragma omp parallel for
 	for(int i=0; i<dataSize; i++)
 		this->data[i]=std::min(this->data[i],op(i));
 	return *this;
@@ -226,6 +230,7 @@ Image <T> &Image<T>::operator&=(Image <T> &op)
 template <class T>
 Image <T> &Image<T>::operator|=(Image <T> &op)
 {
+#pragma omp parallel for
 	for(int i=0; i<dataSize; i++)
 		this->data[i]=std::max(this->data[i],op(i));
 	return *this;
@@ -236,7 +241,8 @@ Image <T> &Image<T>::operator!()
 {
 	T max=std::numeric_limits<T>::max();
 	T min=std::numeric_limits<T>::min();
-	
+
+#pragma omp parallel for
 	for(int i=0; i<this->dataSize; i++)
 		this->data[i]=max+min-this->data[i];
 	return *this;
@@ -268,6 +274,7 @@ return min;
 template <class T> 
 void Image<T>::fill(const T value)
 {
+#pragma omp parallel for
 	for(int i=0; i<this->dataSize; i++)
 		this->data[i]=value;
 }

@@ -205,7 +205,7 @@ namespace LibTIM
 		se.setContext(im.getSize());
 
 		{
-			FlatSE::iterator_point endSe = se.end_point();
+			const std::vector points(se.begin_point(), se.end_point());
 
 			T min = std::numeric_limits<T>::min();
 
@@ -215,11 +215,11 @@ namespace LibTIM
 					for (int64_t z = 0; z < res.getSizeZ(); ++z)
 					{
 						T currentMax = min;
-						for (auto itSe = se.begin_point(); itSe != endSe; ++itSe)
+						for (const auto& pt : points)
 						{
-							int64_t newX = x + itSe->x;
-							int64_t newY = y + itSe->y;
-							int64_t newZ = z + itSe->z;
+							const TCoord newX = x + pt.x;
+							const TCoord newY = y + pt.y;
+							const TCoord newZ = z + pt.z;
 							if (im.isPosValid(newX, newY, newZ)) {
 								currentMax = std::max(currentMax, im(newX, newY, newZ));
 							}
@@ -237,7 +237,7 @@ namespace LibTIM
 		Image<T> res = im;
 		se.setContext(im.getSize());
 
-		FlatSE::iterator_point endSe = se.end_point();
+		const std::vector points(se.begin_point(), se.end_point());
 		T max = std::numeric_limits<T>::max();
 
 #pragma omp parallel for collapse(3)
@@ -246,14 +246,13 @@ namespace LibTIM
 				for (int64_t z = 0; z < res.getSizeZ(); ++z)
 				{
 					T currentMin = max;
-					for (auto itSe = se.begin_point(); itSe != endSe; ++itSe)
+					for (const auto& pt : points)
 					{
-						int64_t newX = x + itSe->x;
-						int64_t newY = y + itSe->y;
-						int64_t newZ = z + itSe->z;
-						if (im.isPosValid(newX, newY, newZ)) {
+						const TCoord newX = x + pt.x;
+						const TCoord newY = y + pt.y;
+						const TCoord newZ = z + pt.z;
+						if (im.isPosValid(newX, newY, newZ))
 							currentMin = std::min(currentMin, im(newX, newY, newZ));
-						}
 					}
 					res(x, y, z) = currentMin;
 				}
